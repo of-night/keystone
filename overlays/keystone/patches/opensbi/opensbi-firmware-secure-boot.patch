@@ -1,15 +1,16 @@
-diff --git firmware/fw_base.ldS firmware/fw_base.ldS
-index 0ac75f2..9aa9c1a 100644
+diff --git a/firmware/fw_base.ldS b/firmware/fw_base.ldS
+index 3d68484..2da7c2c 100644
 --- a/firmware/fw_base.ldS
 +++ b/firmware/fw_base.ldS
-@@ -79,3 +79,39 @@
+@@ -101,3 +101,40 @@
  	. = ALIGN(0x1000); /* Need this to create proper sections */
  
  	PROVIDE(_fw_end = .);
 +
++
 +  /* # Sanctum params */
 +  /* ================ */
-+  . = 0x801ff000; /* the last page before the payload */
++  . = 0x401ff000; /* the last page before the payload */
 +
 +  /* ## manufacturer_keys : */
 +
