@@ -13,6 +13,19 @@ include $(sort $(wildcard $(BR2_EXTERNAL_KEYSTONE_PATH)/package/*/*.mk))
 ## Platform patches ##
 ######################
 
+## visionfive2 ##
+ifeq ($(KEYSTONE_PLATFORM),starfive/visionfive2)
+
+# U-Boot
+define UBOOT_COPY_STARFIVE_VISIONFIVE2_SOURCES
+	cp -ar $(KEYSTONE)/overlays/keystone/board/starfive/visionfive2/src/uboot/keystone $(@D)/arch/riscv/lib
+	cp -ar $(KEYSTONE)/overlays/keystone/board/starfive/visionfive2/src/uboot/keystone.h $(@D)/arch/riscv/include/asm
+	cp -ar $(KEYSTONE)/overlays/keystone/board/starfive/visionfive2/src/uboot/u-boot-spl-sanctum.lds $(@D)/arch/riscv/cpu
+endef
+UBOOT_POST_EXTRACT_HOOKS += UBOOT_COPY_STARFIVE_VISIONFIVE2_SOURCES
+
+endif
+
 ## unmatched ##
 ifeq ($(KEYSTONE_PLATFORM),hifive_unmatched)
 

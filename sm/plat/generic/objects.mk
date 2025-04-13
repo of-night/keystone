@@ -9,7 +9,7 @@ include $(src_dir)/platform/$(PLATFORM)/objects.mk
 # The header is only correctly included for VF2 if we use KEYSTONE_PLATFORM instead of PLATFORM here
 ifeq ($(KEYSTONE_PLATFORM),starfive/visionfive2)
 platform-genflags-y += "-DTARGET_PLATFORM_HEADER=\"platform/$(KEYSTONE_PLATFORM)/platform.h\""
-platform-genflags-y += "-DBOARD_VISIONFIVE2"
+# platform-genflags-y += "-DBOARD_VISIONFIVE2"
 else
 platform-genflags-y += "-DTARGET_PLATFORM_HEADER=\"platform/$(PLATFORM)/platform.h\""
 endif
