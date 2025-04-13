@@ -13,3 +13,9 @@
 [submodule "scripts/ci/utils/relay_ft245r"]
 	path = scripts/ci/utils/relay_ft245r
 	url = https://github.com/vpatron/relay_ft245r
+[submodule "bench"]
+	path = bench
+	url = https://github.com/of-night/keystone-bench
+[submodule "demo"]
+	path = demo
+	url = https://github.com/of-night/keystone-demo
