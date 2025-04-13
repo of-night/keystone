@@ -43,6 +43,20 @@ struct epm {
   bool is_cma;
 };
 
+extern spinlock_t YXSTM_spinlock;
+
+struct YXSTM {
+  pte_t* root_page_table;
+  void* ptr;
+  size_t size;
+  unsigned long order;
+};
+
+struct GLOBAL_YXSTM {
+  struct YXSTM global_yxstm;
+  volatile unsigned long long globalCount;
+};
+
 struct utm {
   pte_t* root_page_table;
   void* ptr;
@@ -57,6 +71,8 @@ struct enclave
   int close_on_pexit;
   struct utm* utm;
   struct epm* epm;
+  struct YXSTM* YXSTM;
+  unsigned long long ms;
   bool is_init;
 };
 
@@ -88,6 +104,8 @@ int epm_destroy(struct epm* epm);
 int epm_init(struct epm* epm, unsigned int count);
 int utm_destroy(struct utm* utm);
 int utm_init(struct utm* utm, size_t untrusted_size);
+int YXSTM_destroy(struct YXSTM* YXSTM);
+int YXSTM_init(struct YXSTM* YXSTM, size_t YXSTrusted_size);
 paddr_t epm_va_to_pa(struct epm* epm, vaddr_t addr);
 
 #define keystone_info(fmt, ...) \

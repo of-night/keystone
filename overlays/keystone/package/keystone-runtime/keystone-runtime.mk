@@ -15,7 +15,10 @@ endif
 # pkg-keystone.mk
 
 # Clean the examples too if we clean this package
-keystone-runtime-dirclean: keystone-examples-dirclean
+keystone-runtime-dirclean: keystone-examples-dirclean \
+                            keystone-demo-dirclean \
+                            keystone-bench-dirclean
 
 $(eval $(keystone-package))
 $(eval $(generic-package))
+

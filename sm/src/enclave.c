@@ -15,6 +15,10 @@
 
 struct enclave enclaves[ENCL_MAX];
 
+ms_group ms_group_list[MAX_MS_GROUP]; // 从属 enclave 组列表
+
+static int YXSTM_sm_init = 0;
+
 // Enclave IDs are unsigned ints, so we do not need to check if eid is
 // greater than or equal to 0
 #define ENCLAVE_EXISTS(eid) (eid < ENCL_MAX && enclaves[eid].state >= 0)
@@ -68,6 +72,10 @@ static inline void context_switch_to_enclave(struct sbi_trap_regs* regs,
     regs->a6 = (uintptr_t) enclaves[eid].params.untrusted_base;
     // $a7: utm size
     regs->a7 = (uintptr_t) enclaves[eid].params.untrusted_size;
+    // $t0: (PA) YXSTM base,
+    regs->t0 = (uintptr_t) enclaves[eid].params.YXSTrusted_base;
+    // $01: YXSTM size
+    regs->t1 = (uintptr_t) enclaves[eid].params.YXSTrusted_size;
 
     // enclave will only have physical addresses in the first run
     csr_write(satp, 0);
@@ -83,6 +91,37 @@ static inline void context_switch_to_enclave(struct sbi_trap_regs* regs,
       pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_ALL_PERM);
     }
   }
+
+  // sbi_printf("pmp testing start\n");
+  // if(load_parameters) {
+  //   osm_pmp_set(PMP_NO_PERM);
+  //   int memid;
+  //   for(memid=0; memid < ENCLAVE_REGIONS_MAX; memid++) {
+  //     if(enclaves[eid].regions[memid].type != REGION_INVALID) {
+  //       pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_ALL_PERM);
+  //     }
+  //   }
+  // } else {
+  //   osm_pmp_set(PMP_NO_PERM);
+  //   int memid;
+  //   for(memid=0; memid < ENCLAVE_REGIONS_MAX; memid++) {
+  //     if(enclaves[eid].regions[memid].type != REGION_INVALID) {
+  //       pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_NO_PERM);
+  //     }
+  //   }
+  // }
+  // sbi_printf("pmp testing end\n");
+
+  // sbi_printf("pmp testing start\n");
+  // osm_pmp_set(PMP_NO_PERM);
+  // int memid;
+  // for(memid=0; memid < ENCLAVE_REGIONS_MAX; memid++) {
+  //   if(enclaves[eid].regions[memid].type != REGION_INVALID) {
+  //     pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_NO_PERM);
+  //   }
+  // }
+  // sbi_printf("pmp testing end\n");
+
 
   // Setup any platform specific defenses
   platform_switch_to_enclave(&(enclaves[eid]));
@@ -168,6 +207,13 @@ static unsigned long clean_enclave_memory(uintptr_t utbase, uintptr_t utsize)
   // Zero out the untrusted memory region, since it may be in
   // indeterminate state.
   sbi_memset((void*)utbase, 0, utsize);
+
+  return SBI_ERR_SM_ENCLAVE_SUCCESS;
+}
+
+static unsigned long clean_enclave_YXST_memory(uintptr_t YXSTbase, uintptr_t YXSTsize)
+{
+  sbi_memset((void*)YXSTbase, 0, YXSTsize);
 
   return SBI_ERR_SM_ENCLAVE_SUCCESS;
 }
@@ -322,6 +368,23 @@ static int is_create_args_valid(struct keystone_sbi_create_t* args)
   return 1;
 }
 
+// 初始化从属 enclave 的函数
+static void initialize_m_enclave(m_enclave* menclave) {
+  menclave->slave_numbers = 0; // 设置从属数量为0
+  for (int i = 0; i < MAX_SLAVE_ENCLAVES; i++) {
+    menclave->slave_enclave[i] = NULL; // 初始化从属 enclave 指针为 NULL
+  }
+}
+
+// 初始化 s_enclave 的函数
+static void initialize_s_enclave(s_enclave* enclave) {
+  enclave->state = 0; // 初始化状态
+  enclave->s_id = 0; // 初始化从属 enclave 的 ID
+  enclave->data_ptr = 0; // 初始化数据指针
+  enclave->size = 0; // 初始化数据大小
+  enclave->numbers = 0; // 初始化块id
+}
+
 /*********************************
  *
  * Enclave SBI functions
@@ -342,10 +405,14 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   size_t size = create_args.epm_region.size;
   uintptr_t utbase = create_args.utm_region.paddr;
   size_t utsize = create_args.utm_region.size;
+  uintptr_t YXSTbase = create_args.YXSTM_region.paddr;
+  size_t YXSTsize = create_args.YXSTM_region.size;
+  uint64_t ms_YXSTM = create_args.ms_YXSTM;
 
   enclave_id eid;
   unsigned long ret;
   int region, shared_region;
+  int YXSTM_region;
 
   /* Runtime parameters */
   if(!is_create_args_valid(&create_args))
@@ -360,6 +427,13 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   params.free_base = create_args.free_paddr;
   params.untrusted_base = utbase;
   params.untrusted_size = utsize;
+  params.YXSTrusted_base = YXSTbase;
+  params.YXSTrusted_size = YXSTsize;
+
+  if (ms_YXSTM == 0) {
+    params.YXSTrusted_base = 0;
+    params.YXSTrusted_size = 0;
+  }
   params.free_requested = create_args.free_requested;
 
 
@@ -377,21 +451,49 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   if(pmp_region_init_atomic(utbase, utsize, PMP_PRI_BOTTOM, &shared_region, 0))
     goto free_region;
 
+  spin_lock(&encl_lock);
+  if (ms_YXSTM) {
+    // sbi_printf("YXSTM sm testing 1 %s\t,YXSTbase:%lu ,YXSTsize:%lu\n", __func__, YXSTbase, YXSTsize);
+    if (YXSTM_sm_init == 0) {
+      if(pmp_region_init_atomic(YXSTbase, YXSTsize, PMP_PRI_ANY, &YXSTM_region, 0)) {
+        spin_unlock(&encl_lock);
+        goto free_shared_region;
+      }
+      YXSTM_sm_init = YXSTM_region;
+    } else {
+      YXSTM_region = YXSTM_sm_init;
+    }
+    // sbi_printf("YXSTM sm testing 2 %s\t,YXSTbase:%lu ,YXSTsize:%lu, YXSTM_region:%d\n", __func__, YXSTbase, YXSTsize, YXSTM_region);
+  }
+  spin_unlock(&encl_lock);
+
   // set pmp registers for private region (not shared)
   if(pmp_set_global(region, PMP_NO_PERM))
-    goto free_shared_region;
+    goto free_YXSTM_region;
 
   // cleanup some memory regions for sanity See issue #38
   clean_enclave_memory(utbase, utsize);
 
+  if (ms_YXSTM) {
+    clean_enclave_YXST_memory(YXSTbase, YXSTsize);
+  }
 
   // initialize enclave metadata
   enclaves[eid].eid = eid;
+
+  // Initialize the master enclave structure for the newly created enclave
+  initialize_m_enclave(&enclaves[eid].m);
+  // Initialize the slave enclave structure for the newly created enclave
+  initialize_s_enclave(&enclaves[eid].s);
 
   enclaves[eid].regions[0].pmp_rid = region;
   enclaves[eid].regions[0].type = REGION_EPM;
   enclaves[eid].regions[1].pmp_rid = shared_region;
   enclaves[eid].regions[1].type = REGION_UTM;
+  if (ms_YXSTM) {
+    enclaves[eid].regions[2].pmp_rid = YXSTM_region;
+    enclaves[eid].regions[2].type = REGION_EPM;
+  }
 #if __riscv_xlen == 32
   enclaves[eid].encl_satp = ((base >> RISCV_PGSHIFT) | (SATP_MODE_SV32 << HGATP_MODE_SHIFT));
 #else
@@ -430,6 +532,8 @@ unlock:
   platform_destroy_enclave(&enclaves[eid]);
 unset_region:
   pmp_unset_global(region);
+free_YXSTM_region:
+  pmp_region_free_atomic(YXSTM_region);
 free_shared_region:
   pmp_region_free_atomic(shared_region);
 free_region:
@@ -472,6 +576,7 @@ unsigned long destroy_enclave(enclave_id eid)
   void* base;
   size_t size;
   region_id rid;
+  // spin_lock(&encl_lock);
   for(i = 0; i < ENCLAVE_REGIONS_MAX; i++){
     if(enclaves[eid].regions[i].type == REGION_INVALID ||
        enclaves[eid].regions[i].type == REGION_UTM)
@@ -481,10 +586,19 @@ unsigned long destroy_enclave(enclave_id eid)
     base = (void*) pmp_region_get_addr(rid);
     size = (size_t) pmp_region_get_size(rid);
     sbi_memset((void*) base, 0, size);
+    // sbi_printf("YXSTM testing 1 %s , free region:%d\n", __func__, rid);
 
     //1.b free pmp region
+    if (YXSTM_sm_init == rid) {
+      YXSTM_sm_init = 0;
+      pmp_unset_global(rid);
+      pmp_region_free_atomic(rid);
+      continue;
+    }
     pmp_unset_global(rid);
+    // sbi_printf("YXSTM testing 2 %s , free region:%d\n", __func__,  rid);
     pmp_region_free_atomic(rid);
+    // sbi_printf("YXSTM testing 3 %s , free region:%d\n", __func__,  rid);
   }
 
   // 2. free pmp region for UTM
@@ -498,6 +612,22 @@ unsigned long destroy_enclave(enclave_id eid)
   for(i=0; i < ENCLAVE_REGIONS_MAX; i++){
     enclaves[eid].regions[i].type = REGION_INVALID;
   }
+
+  // 2.5 clean group
+  for (int i=0; i<MAX_MS_GROUP; ++i) {
+    if(ms_group_list[i].isCreated == 1) {
+      if (ms_group_list[i].m != NULL && ms_group_list[i].m == &enclaves[eid].m) {
+        if (enclaves[eid].m.slave_numbers != 0) {
+          enclaves[eid].m.slave_numbers = 0;
+          // sbi_printf("set slave_number and YXSTM_sm_init = 0\n");
+          YXSTM_sm_init = 0;
+        }
+        ms_group_list[i].isCreated = 0;
+        break;
+      }
+    }
+  }
+  // spin_unlock(&encl_lock);
 
   // 3. release eid
   encl_free_eid(eid);
@@ -679,4 +809,440 @@ unsigned long get_sealing_key(uintptr_t sealing_key, uintptr_t key_ident,
           SEALING_KEY_SIZE);
 
   return SBI_ERR_SM_ENCLAVE_SUCCESS;
+}
+
+// 创建从属 enclave 组的函数
+unsigned long m_enclave_create_group(uintptr_t identity, uintptr_t size, enclave_id eid) {
+  sbi_printf("sm testing %s 1 \n", __func__);
+  spin_lock(&encl_lock);
+  
+  m_enclave* m = &enclaves[eid].m; // 获取指定 enclave 的 m_enclave
+  char tempidentity[64+4];
+  if (copy_enclave_data(&enclaves[eid], (void*)tempidentity, identity, size)) { // 复制身份信息
+    spin_unlock(&encl_lock);
+    return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  }
+  // 查找未创建的组
+  for (int i = 0; i < MAX_MS_GROUP; i++) {
+    // sbi_printf("sm testing %s \n", __func__);
+    if (ms_group_list[i].isCreated == 0) { // 查找未创建的组
+      // sbi_printf("sm testing %s 2 ,size %ld\n", __func__, size);
+      // // sbi_memcpy(ms_group_list[i].identity, (char*)identity, size); // 复制身份信息
+      // ret = copy_enclave_data(&enclaves[eid], (void*)ms_group_list[i].identity, identity, size); // 复制身份信息
+      // if (copy_enclave_data(&enclaves[eid], (void*)ms_group_list[i].identity, identity, size)) { // 复制身份信息
+      //   spin_unlock(&encl_lock);
+      //   return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+      // }
+      sbi_memcpy(ms_group_list[i].identity, tempidentity, size); // 复制身份信息
+      // sbi_printf("sm testing %s 3 id: %s\n", __func__, ms_group_list[i].identity);
+      ms_group_list[i].m = m; // 关联 m_enclave
+      // sbi_printf("sm testing %s 4 \n", __func__);
+      ms_group_list[i].isCreated = 1; // 标记为已创建
+      spin_unlock(&encl_lock);
+      return SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回成功
+    } else if(ms_group_list[i].isCreated == 1) {
+      // 检查组是否已创建 
+      // char temp[64+4];
+      // if (copy_enclave_data(&enclaves[eid], (void*)temp, identity, size)) { // 复制身份信息
+      //   spin_unlock(&encl_lock);
+      //   return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+      // }
+      // if (sbi_memcmp(ms_group_list[i].identity, temp, size) == 0) {
+      //   spin_unlock(&encl_lock);
+      //   return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+      // }
+
+      // if (sbi_memcmp(ms_group_list[i].identity, (char*)identity, size) == 0) {
+      //   spin_unlock(&encl_lock);
+      //   return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+      // }
+      if (sbi_memcmp(ms_group_list[i].identity, tempidentity, size) == 0) {
+        spin_unlock(&encl_lock);
+        return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+      }
+    }
+  }
+  spin_unlock(&encl_lock);
+  return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+}
+
+// 加入从属 enclave 组的函数
+unsigned long s_enclave_join_group(uintptr_t identity, uintptr_t size, enclave_id eid) {
+  int ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR;
+
+  sbi_printf("sm testing %s\n", __func__);
+  spin_lock(&encl_lock);
+
+  char tempidentity[64+4];
+  if (copy_enclave_data(&enclaves[eid], (void*)tempidentity, identity, size)) { // 复制身份信息
+    ret = SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+    goto err;
+  }
+
+  m_enclave* m = NULL; // 初始化 m_enclave 指针
+  s_enclave* s = &enclaves[eid].s; // 获取指定 enclave 的 s_enclave
+  s->s_id = eid;
+  for (int i = 0; i < MAX_MS_GROUP; i++) {
+    if (ms_group_list[i].isCreated == 1) { // 检查组是否已创建
+      if (sbi_memcmp(ms_group_list[i].identity, tempidentity, size) == 0) { // 匹配身份
+        m = ms_group_list[i].m; // 获取 m_enclave
+        if (m->slave_numbers < MAX_SLAVE_ENCLAVES) { // 确保不超过最大从属数量
+          m->slave_enclave[m->slave_numbers++] = s; // 将 s_enclave 添加到从属数组
+          ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回成功
+        } else {
+          ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回未知错误
+          goto err;
+        }
+        break;
+      }
+    }
+  }
+
+err:
+  spin_unlock(&encl_lock);
+  return ret;
+}
+
+// 查找从属 enclave 组的函数
+unsigned long s_enclave_find_group(uintptr_t identity, uintptr_t size) {
+  for (int i = 0; i < MAX_MS_GROUP; i++) {
+    if (ms_group_list[i].isCreated == 1 && sbi_memcmp(ms_group_list[i].identity, (char*)identity, size) == 0) {
+      return i; // 返回找到的组索引
+    }
+  }
+  return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回未知错误
+}
+
+// 检查从属 enclave 数据的函数
+static int check_m_get_data(m_enclave* m, uint64_t numbers, uint64_t state, uint64_t size, uint64_t s_id) {
+  sbi_printf("sm testing %s  1\n", __func__);
+  sbi_printf("sm testing %s  s_number=%ld, number=%ld\n", __func__, m->slave_enclave[s_id]->numbers, numbers);
+  sbi_printf("sm testing %s  s_state=%ld, state=%ld\n", __func__, m->slave_enclave[s_id]->state, state);
+  sbi_printf("sm testing %s  s_size=%ld, size=%ld\n", __func__, m->slave_enclave[s_id]->size, size);
+  if (m->slave_enclave[s_id]->numbers == numbers && 
+      m->slave_enclave[s_id]->size <= size) {
+    return SBI_ERR_SM_ENCLAVE_SUCCESS; // 数据有效
+  }
+  return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 数据无效
+}
+
+static unsigned long copy_sm_to_enclave(struct enclave* enclave,
+  uintptr_t dest, void* source, size_t size) {
+
+int illegal = copy_from_sm(dest, source, size);
+
+if(illegal)
+return SBI_ERR_SM_ENCLAVE_ILLEGAL_ARGUMENT;
+else
+return SBI_ERR_SM_ENCLAVE_SUCCESS;
+}
+
+static unsigned long copy_slave_enclave_data(struct enclave* enclave,
+                                          uintptr_t dest, uintptr_t source, size_t size) {
+
+  sbi_printf("sm testing %s, in 1\n", __func__);
+  int illegal = copy_s_to_m(dest, source, size);
+  sbi_printf("sm testing %s, in 2\n", __func__);
+  if(illegal)
+    return SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR;
+  else
+    return SBI_ERR_SM_ENCLAVE_SUCCESS;
+}
+
+// 获取从属 enclave 数据的函数
+unsigned long main_enclave_get_slave_enclave_data_yx(uintptr_t temp_ptr, uintptr_t dest_ptr, enclave_id eid) {
+  int ret;
+
+  unsigned char temp[17] = {0};
+  unsigned long *temp_nothing = (unsigned long *)temp;
+  unsigned long *temp_size = (unsigned long *)(temp+8);
+  unsigned char *temp_state = temp+16;
+
+  // unsigned char yxtest = 67;
+  spin_lock(&encl_lock);
+
+  // sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  1\n", __func__, eid, yxtest);
+
+  // if (copy_enclave_data(&enclaves[eid], (void*)&yxtest, dest, 1)) { // 复制身份信息
+  //   spin_unlock(&encl_lock);
+  //   return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  // }
+
+  // sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  2\n", __func__, eid, yxtest);
+
+  // yxtest = 65;
+
+  // sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  3\n", __func__, eid, yxtest);
+
+  // if (copy_sm_to_enclave(&enclaves[eid], dest, (void*)&yxtest, 1)) { // 复制身份信息
+  //   spin_unlock(&encl_lock);
+  //   return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  // }
+
+  // yxtest = 66;
+
+  // sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  4\n", __func__, eid, yxtest);
+
+  // if (copy_enclave_data(&enclaves[eid], (void*)&yxtest, dest, 1)) { // 复制身份信息
+  //   spin_unlock(&encl_lock);
+  //   return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  // }
+
+  // sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  5\n", __func__, eid, yxtest);
+
+  if (copy_enclave_data(&enclaves[eid], (void*)temp, temp_ptr, 17)) { // 复制身份信息
+    spin_unlock(&encl_lock);
+    return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  }
+
+  m_enclave* m = &enclaves[eid].m;
+  uint64_t s_id = (*temp_nothing) % (m->slave_numbers + 1); // 选择从属 enclave
+  sbi_printf("sm testing %s  check_m_get_data 1, sid=%ld, numbers=%ld, m->slave_numbers=%ld, size=%ld\n", __func__, s_id, *temp_nothing, m->slave_numbers, *temp_size);
+  if (m->slave_enclave[s_id - 1]->state == 0) {
+    // spin_unlock(&encl_lock);
+    sbi_printf("sm testing %s  slave_state=%lu, whiling...\n", __func__, m->slave_enclave[s_id - 1]->state);
+    *temp_state = 0;
+    if (copy_sm_to_enclave(&enclaves[eid], temp_ptr, (void*)temp, 17)) {
+      ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回等待
+      goto err;
+    }
+    ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回等待
+    goto err;
+    sbi_printf("sm testing %s, waiting spin_lock\n", __func__);
+    // spin_lock(&encl_lock);
+    sbi_printf("sm testing %s  slave_state=%lu\n", __func__, m->slave_enclave[s_id - 1]->state);
+  }
+  ret = check_m_get_data(m, *temp_nothing, m->slave_enclave[s_id - 1]->state, *temp_size, s_id - 1); // 检查数据
+
+  // sbi_printf("sm testing %s, copy_slave_enclave_data 2, ret=%d\n", __func__, ret);
+  // if (ret) {
+  //   ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回未知错误
+  //   goto err;
+  // }
+  
+  sbi_printf("sm testing %s, copy_slave_enclave_data 1\n", __func__);
+  *temp_nothing = m->slave_enclave[s_id - 1]->numbers;
+  *temp_size = m->slave_enclave[s_id - 1]->size;
+  *temp_state = 1;
+  ret = copy_sm_to_enclave(&enclaves[eid], temp_ptr, (void*)temp, 17); // 复制
+  if (ret) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+    goto err;
+  }
+  sbi_printf("sm testing %s, copy_slave_enclave_data 2\n", __func__);
+
+  ret = copy_slave_enclave_data(&enclaves[eid], dest_ptr, m->slave_enclave[s_id - 1]->data_ptr, m->slave_enclave[s_id - 1]->size); // 复制数据
+  if (ret) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+    goto err;
+  }
+
+  sbi_printf("sm testing %s, copy_slave_enclave_data done\n", __func__);
+  
+  m->slave_enclave[s_id - 1]->state = 0; // 重置状态
+  
+  ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回成功
+
+err:  
+  spin_unlock(&encl_lock);
+  return ret;
+}
+
+// 设置从属 enclave 数据指针的函数
+unsigned long slave_enclave_set_dataptr_yx(uintptr_t temp_ptr, uintptr_t data_ptr, enclave_id eid) {
+  int ret;
+
+  unsigned char temp[17] = {0};
+  unsigned long *temp_nothing = (unsigned long *)temp;
+  unsigned long *temp_size = (unsigned long *)(temp+8);
+  unsigned char *temp_state = temp+16;
+
+  spin_lock(&encl_lock);
+
+  if (copy_enclave_data(&enclaves[eid], (void*)temp, temp_ptr, 17)) { // 复制身份信息
+    spin_unlock(&encl_lock);
+    return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  }
+
+  sbi_printf("sm testing %s\n", __func__);
+  s_enclave* s = &enclaves[eid].s; // 获取指定 enclave 的 s_enclave
+  if (s->state == 0) { // 检查状态
+    s->data_ptr = data_ptr; // 设置数据指针
+    s->size = *temp_size; // 设置数据大小
+    s->numbers = *temp_nothing; // 设置数量
+    s->state = 1; // 更新状态
+    *temp_state = 0;
+  } else {
+    *temp_state = 1;
+  }
+
+  if (copy_sm_to_enclave(&enclaves[eid], temp_ptr, (void*)temp, 17) ) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回等待
+    goto err;
+  }
+
+  ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回成功
+
+  sbi_printf("sm testing %s, slave_eid=%ud, state=%lu, numbers=%lu, size=%lu, *temp_state=%02x \n", __func__, eid, s->state, *temp_nothing, *temp_size, *temp_state);
+
+err:
+  spin_unlock(&encl_lock);
+  return ret;
+}
+
+// 获取从属 enclave 数据的函数
+unsigned long main_enclave_get_slave_enclave_data(uintptr_t dest, uintptr_t size, uintptr_t numbers, enclave_id eid) {
+  int ret;
+
+  // sbi_printf("\t\t yx sm copy s to m testing %s main_eid=%ud 1\n", __func__, eid);
+  // while(1){
+
+  // }
+  unsigned char tz = 11;
+  unsigned char tz1 = 1;
+  unsigned char yxtest = 67;
+  spin_lock(&encl_lock);
+
+  sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  1\n", __func__, eid, yxtest);
+
+  if (copy_enclave_data(&enclaves[eid], (void*)&yxtest, dest, 1)) { // 复制身份信息
+    spin_unlock(&encl_lock);
+    return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  }
+
+  sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  2\n", __func__, eid, yxtest);
+
+  yxtest = 65;
+
+  sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  3\n", __func__, eid, yxtest);
+
+  if (copy_sm_to_enclave(&enclaves[eid], dest, (void*)&yxtest, 1)) { // 复制身份信息
+    spin_unlock(&encl_lock);
+    return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  }
+
+  yxtest = 66;
+
+  sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  4\n", __func__, eid, yxtest);
+
+  if (copy_enclave_data(&enclaves[eid], (void*)&yxtest, dest, 1)) { // 复制身份信息
+    spin_unlock(&encl_lock);
+    return SBI_ERR_SM_ENCLAVE_NOT_ACCESSIBLE;
+  }
+
+  sbi_printf("sm testing %s main_eid=%ud yxtest=%02x  5\n", __func__, eid, yxtest);
+
+  m_enclave* m = &enclaves[eid].m;
+  uint64_t s_id = numbers % (m->slave_numbers + 1); // 选择从属 enclave
+  sbi_printf("sm testing %s  check_m_get_data 1, sid=%ld, numbers=%ld, m->slave_numbers=%ld, size=%ld\n", __func__, s_id, numbers, m->slave_numbers, size);
+  if (m->slave_enclave[s_id - 1]->state == 0) {
+    // spin_unlock(&encl_lock);
+    sbi_printf("sm testing %s  slave_state=%lu, whiling...\n", __func__, m->slave_enclave[s_id - 1]->state);
+    ret = copy_sm_to_enclave(&enclaves[eid], dest, (void*)&tz1, 1); // 复制
+    if (ret) {
+      ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回等待
+      goto err;
+    }
+    ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回等待
+    goto err;
+    sbi_printf("sm testing %s, waiting spin_lock\n", __func__);
+    // spin_lock(&encl_lock);
+    sbi_printf("sm testing %s  slave_state=%lu\n", __func__, m->slave_enclave[s_id - 1]->state);
+  }
+  ret = check_m_get_data(m, numbers, m->slave_enclave[s_id - 1]->state, size, s_id - 1); // 检查数据
+
+  // sbi_printf("sm testing %s, copy_slave_enclave_data 2, ret=%d\n", __func__, ret);
+  // if (ret) {
+  //   ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回未知错误
+  //   goto err;
+  // }
+  
+  sbi_printf("sm testing %s, copy_slave_enclave_data 1\n", __func__);
+  ret = copy_sm_to_enclave(&enclaves[eid], dest+1, (void*)&m->slave_enclave[s_id - 1]->numbers, 8); // 复制number
+  if (ret) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+    goto err;
+  }
+
+  sbi_printf("sm testing %s, copy_slave_enclave_data 2\n", __func__);
+  ret = copy_sm_to_enclave(&enclaves[eid], dest+9, (void*)&m->slave_enclave[s_id - 1]->size, 8); // 复制size
+  if (ret) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+    goto err;
+  }
+
+  sbi_printf("sm testing %s, copy_slave_enclave_data 3\n", __func__);
+  ret = copy_slave_enclave_data(&enclaves[eid], dest+17, m->slave_enclave[s_id - 1]->data_ptr, size); // 复制数据
+  if (ret) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+    goto err;
+  }
+
+  sbi_printf("sm testing %s, copy_slave_enclave_data done\n", __func__);
+  
+  m->slave_enclave[s_id - 1]->state = 0; // 重置状态
+  ret = copy_sm_to_enclave(&enclaves[eid], dest, (void*)&tz, 1); // 复制
+
+  ret = copy_sm_to_enclave(&enclaves[m->slave_enclave[s_id - 1]->s_id], m->slave_enclave[s_id - 1]->data_ptr-17, (void*)&tz1, 1);
+  sbi_printf("sm testing %s, set copy_slave_enclave_data ready\n", __func__);
+  if (ret) {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回错误
+    goto err;
+  }
+  
+  ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回成功
+
+err:  
+  spin_unlock(&encl_lock);
+  return ret;
+}
+
+// 设置从属 enclave 数据指针的函数
+unsigned long slave_enclave_set_dataptr(uintptr_t src, uintptr_t size, uintptr_t numbers, enclave_id eid) {
+  int ret;
+  spin_lock(&encl_lock);
+
+  sbi_printf("sm testing %s\n", __func__);
+  s_enclave* s = &enclaves[eid].s; // 获取指定 enclave 的 s_enclave
+  if (s->state == 0) { // 检查状态
+    s->data_ptr = src; // 设置数据指针
+    s->size = size; // 设置数据大小
+    s->numbers = numbers; // 设置数量
+    s->state = 1; // 更新状态
+    ret = SBI_ERR_SM_ENCLAVE_SUCCESS; // 返回成功
+  } else {
+    ret = SBI_ERR_SM_ENCLAVE_UNKNOWN_ERROR; // 返回未知错误
+    goto err;
+  }
+
+  sbi_printf("sm testing %s, slave_eid=%ud, state=%lu, numbers=%lu, size=%lu, ret=%d \n", __func__, eid, s->state, numbers, size, ret);
+
+err:
+  spin_unlock(&encl_lock);
+  return ret;
+}
+
+
+unsigned long slave_enclave_set_numberblock_set_pmp(enclave_id eid){
+  int memid;
+  for(memid=0; memid < ENCLAVE_REGIONS_MAX; memid++) {
+    if(enclaves[eid].regions[memid].type != REGION_INVALID) {
+      if (enclaves[eid].regions[memid].pmp_rid == YXSTM_sm_init && YXSTM_sm_init != 0) {
+        pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_ALL_PERM);
+      }
+    }
+  }
+  return 0;
+}
+
+unsigned long main_enclave_get_numberblock_set_pmp(enclave_id eid) {
+  int memid;
+  for(memid=0; memid < ENCLAVE_REGIONS_MAX; memid++) {
+    if(enclaves[eid].regions[memid].type != REGION_INVALID) {
+      if (enclaves[eid].regions[memid].pmp_rid == YXSTM_sm_init && YXSTM_sm_init != 0) {
+        pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_ALL_PERM);
+      }
+    }
+  }
+  return 0;
 }

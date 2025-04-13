@@ -24,6 +24,46 @@ attest_enclave(void* report, void* data, size_t size) {
   return SYSCALL_3(RUNTIME_SYSCALL_ATTEST_ENCLAVE, report, data, size);
 }
 
+int
+m_enclave_create_group(void* identity, size_t size) {
+  return SYSCALL_2(RUNTIME_SYSCALL_CREATE_GROUP, identity, size);
+}
+
+int
+s_enclave_join_group(void* identity, size_t size) {
+  return SYSCALL_2(RUNTIME_SYSCALL_JOIN_GROUP, identity, size);
+}
+
+int
+slave_enclave_set_dataptr(void* src, size_t size, size_t numbers) {
+  return SYSCALL_3(RUNTIME_SYSCALL_SLAVE_ENCLAVE_SET_DATAPTR, src, size, numbers);
+}
+
+int
+main_enclave_get_slave_enclave_data(void* dest, size_t size, size_t numbers) {
+  return SYSCALL_3(RUNTIME_SYSCALL_MAIN_ENCLAVE_GET_SLAVE_ENCLAVE_DATA, dest, size, numbers);
+}
+
+int
+slave_enclave_set_dataptr_yx(void* src) {
+  return SYSCALL_1(RUNTIME_SYSCALL_SLAVE_ENCLAVE_SET_DATAPTR, src);
+}
+
+int
+main_enclave_get_slave_enclave_data_yx(void* dest) {
+  return SYSCALL_1(RUNTIME_SYSCALL_MAIN_ENCLAVE_GET_SLAVE_ENCLAVE_DATA, dest);
+}
+
+int
+slave_enclave_set_numberblock(void* src, size_t set_number, size_t size) {
+  return SYSCALL_3(RUNTIME_SYSCALL_YXSTM_SET_NUMBERBLOCK, src, set_number, size);
+}
+
+int
+main_enclave_get_numberblock(void* dest, size_t set_number, size_t size) {
+  return SYSCALL_3(RUNTIME_SYSCALL_YXSTM_GET_NUMBERBLOCK, dest, set_number, size);
+}
+
 /* returns sealing key */
 int
 get_sealing_key(

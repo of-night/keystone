@@ -14,6 +14,8 @@
 #include <linux/moduleparam.h>
 #include <linux/miscdevice.h>
 #include "keystone_user.h"
+#include <linux/spinlock.h>
+spinlock_t YXSTM_spinlock;
 #define   DRV_DESCRIPTION   "keystone enclave"
 #define   DRV_VERSION       "1.0.0"
 
@@ -79,6 +81,7 @@ static int __init keystone_dev_init(void)
 {
   int  ret;
 
+  spin_lock_init(&YXSTM_spinlock); // 初始化锁
 
   ret = misc_register(&keystone_dev);
   if (ret < 0)

@@ -117,3 +117,40 @@ int utm_init(struct utm* utm, size_t untrusted_size)
 
   return 0;
 }
+
+int YXSTM_destroy(struct YXSTM* YXSTM){
+
+  if(YXSTM->ptr != NULL){
+    free_pages((vaddr_t)YXSTM->ptr, YXSTM->order);
+  }
+
+  return 0;
+}
+
+int YXSTM_init(struct YXSTM* YXSTM, size_t YXSTrusted_size)
+{
+  unsigned long req_pages = 0;
+  unsigned long order = 0;
+  unsigned long count;
+  req_pages += PAGE_UP(YXSTrusted_size)/PAGE_SIZE;
+  order = ilog2(req_pages - 1) + 1;
+  count = 0x1 << order;
+
+  YXSTM->order = order;
+
+  /* Currently, YXSTM does not utilize CMA.
+   * It is always allocated from the buddy allocator */
+  YXSTM->ptr = (void*) __get_free_pages(GFP_HIGHUSER, order);
+  if (!YXSTM->ptr) {
+    keystone_err("failed to allocate YXSTM (size = %i bytes)\n",(1<<order));
+    return -ENOMEM;
+  }
+
+  YXSTM->size = count * PAGE_SIZE;
+  if (YXSTM->size != YXSTrusted_size) {
+    /* Instead of failing, we just warn that the user has to fix the parameter. */
+    keystone_warn("YX share trusted buffer size is not multiple of PAGE_SIZE\n");
+  }
+
+  return 0;
+}

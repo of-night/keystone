@@ -12,6 +12,11 @@
 unsigned char rt_copy_buffer_1[RISCV_PAGE_SIZE];
 unsigned char rt_copy_buffer_2[RISCV_PAGE_SIZE];
 
+// Save identity buffer
+unsigned char rt_copy_identity[64+4];
+// Slave data buffer
+unsigned char rt_copy_slave_data[IPFS_BLOCK_SIZE + 8 + 8 + 1] = {0};
+
 size_t rt_util_getrandom(void* vaddr, size_t buflen){
   size_t remaining = buflen;
   uintptr_t rnd;

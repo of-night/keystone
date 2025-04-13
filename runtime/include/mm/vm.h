@@ -31,6 +31,10 @@ extern size_t freemem_size;
 extern uintptr_t shared_buffer;
 extern uintptr_t shared_buffer_size;
 
+/* YX share trusted memory */
+extern uintptr_t YXS_trusted_memory;
+extern uintptr_t YXS_trusted_memory_size;
+
 #endif
 
 static inline pte pte_create(uintptr_t ppn, int type)

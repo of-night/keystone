@@ -22,6 +22,8 @@ print_string(char* str) {
   return printf("Enclave said: \"%s\"\n", str);
 }
 
+int *test_data = NULL;
+
 int
 main(int argc, char** argv) {
   Keystone::Enclave enclave;
@@ -43,6 +45,16 @@ main(int argc, char** argv) {
 
   enclave.run();
 
+  // int j = 0;
+  // for (size_t i = 0; i < 200000000; i++)
+  // {
+  //   i += 1;
+  //   j += i;
+  // }
+  
+  // printf("enclave done print the test data. loop time data %d\n", j);
+  // printf("%d\n", *test_data);
+
   return 0;
 }
 
@@ -63,7 +75,11 @@ print_string_wrapper(void* buffer) {
   }
 
   /* Pass the arguments from the eapp to the exported ocall function */
-  ret_val = print_string((char*)call_args);
+  // ret_val = print_string((char*)call_args);
+  printf("get the test data\n");
+  printf("test %d\n", *((int *)(*(uintptr_t *)call_args)));
+  // printf("get the test data\n");
+  // test_data = (int *)(*(uintptr_t *)call_args);
 
   /* Setup return data from the ocall function */
   uintptr_t data_section = edge_call_data_ptr();

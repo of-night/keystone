@@ -38,6 +38,14 @@ SimulatedEnclaveMemory::allocUtm(size_t size) {
 }
 
 uintptr_t
+SimulatedEnclaveMemory::allocYXSTm(size_t size, uint64_t ms) {
+  YXSTmPhysAddr   = allocMem(size);
+  YXSTrustedSize  = size;
+  ms_YXSTM        = ms;
+  return YXSTmPhysAddr;
+}
+
+uintptr_t
 SimulatedEnclaveMemory::readMem(uintptr_t src, size_t size) {
   return src;
 }

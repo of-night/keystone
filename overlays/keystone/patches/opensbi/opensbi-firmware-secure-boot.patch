@@ -43,3 +43,4 @@ index 3d68484..2da7c2c 100644
 +  /* 64 Bytes : security monitor's signature by device */
 +  PROVIDE( sanctum_sm_signature = . );
 +  . += 0x40;
+

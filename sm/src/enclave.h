@@ -21,6 +21,29 @@
 /* TODO: does not support multithreaded enclave yet */
 #define MAX_ENCL_THREADS 1
 
+#define MAX_SLAVE_ENCLAVES 9
+
+#define MAX_MS_GROUP 10
+
+typedef struct {
+  uint64_t state;          // 状态
+  unsigned int s_id;          // 从属 enclave 的 eID
+  uintptr_t data_ptr;     // 数据指针
+  uint64_t size;          // 数据大小
+  uint64_t numbers;       // 数量
+} s_enclave;
+
+typedef struct {
+  uint64_t slave_numbers; // 从属数量
+  s_enclave* slave_enclave[MAX_SLAVE_ENCLAVES]; // 从属 enclave 数组
+} m_enclave;
+
+typedef struct {
+  uint64_t isCreated;     // 是否已创建
+  char identity[64+4];    // 身份信息
+  m_enclave* m;           // 关联的 m_enclave
+} ms_group;
+
 typedef enum {
   INVALID = -1,
   DESTROYING = 0,
@@ -75,6 +98,9 @@ struct enclave
   struct thread_state threads[MAX_ENCL_THREADS];
 
   struct platform_enclave_data ped;
+
+  m_enclave m;
+  s_enclave s;
 };
 
 /* attestation reports */
@@ -116,6 +142,32 @@ unsigned long resume_enclave(struct sbi_trap_regs *regs, enclave_id eid);
 unsigned long exit_enclave(struct sbi_trap_regs *regs, enclave_id eid);
 unsigned long stop_enclave(struct sbi_trap_regs *regs, uint64_t request, enclave_id eid);
 unsigned long attest_enclave(uintptr_t report, uintptr_t data, uintptr_t size, enclave_id eid);
+
+// Function to create a group of master enclaves
+unsigned long m_enclave_create_group(uintptr_t identity, uintptr_t size, enclave_id eid);
+
+// Function to join a slave enclave to a master enclave group
+unsigned long s_enclave_join_group(uintptr_t identity, uintptr_t size, enclave_id eid);
+
+// // Function to find a master enclave group by its identity
+// unsigned long s_enclave_find_group(uintptr_t identity, uintptr_t size);
+
+// Function to get data from a slave enclave to the main enclave
+unsigned long main_enclave_get_slave_enclave_data(uintptr_t dest, uintptr_t size, uintptr_t numbers, enclave_id eid);
+
+// Function to set the data pointer for a slave enclave
+unsigned long slave_enclave_set_dataptr(uintptr_t src, uintptr_t size, uintptr_t numbers, enclave_id eid);
+
+// Function to get data from a slave enclave to the main enclave
+unsigned long main_enclave_get_slave_enclave_data_yx(uintptr_t temp_ptr, uintptr_t dest_ptr, enclave_id eid);
+
+// Function to set the data pointer for a slave enclave
+unsigned long slave_enclave_set_dataptr_yx(uintptr_t temp_ptr, uintptr_t data_ptr, enclave_id eid);
+
+unsigned long slave_enclave_set_numberblock_set_pmp(enclave_id eid);
+
+unsigned long main_enclave_get_numberblock_set_pmp(enclave_id eid);
+
 // attestation
 unsigned long validate_and_hash_enclave(struct enclave* enclave);
 // TODO: These functions are supposed to be internal functions.

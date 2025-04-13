@@ -55,6 +55,15 @@ int keystone_init(void) {
     sha3_update(&hash_ctx, (void *)CONFIG_SPL_OPENSBI_LOAD_ADDR, sanctum_sm_size);
     sha3_final(sanctum_sm_hash, &hash_ctx);
 
+    /* Measure SM */
+    sha3_init(&hash_ctx, 64);
+    // sha3_update(&hash_ctx, (void *)CONFIG_SPL_OPENSBI_LOAD_ADDR, sanctum_sm_size);
+    sha3_update(&hash_ctx, 0x40000000, sanctum_sm_size);
+    sha3_final(sanctum_sm_hash, &hash_ctx);
+
+    // *((unsigned int *)sanctum_sm_hash) = CONFIG_SPL_OPENSBI_LOAD_ADDR;
+    // *((unsigned int *)sanctum_sm_hash + 1) = sanctum_sm_hash;
+
     /* Combine SK_D and H_SM via a hash
      * sm_key_seed <-- H(SK_D, H_SM), truncate to 32B */
     sha3_init(&hash_ctx, 64);
@@ -78,3 +87,4 @@ int keystone_init(void) {
     /* caller will clean core state and memory (including the stack). */
     return 0;
 }
+

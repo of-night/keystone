@@ -9,3 +9,7 @@ source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-driver/Config.in"
 source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-sdk/Config.in.host"
 source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-runtime/Config.in"
 source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-examples/Config.in"
+source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-demo/Config.in"
+source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-bench/Config.in"
+# source "$BR2_EXTERNAL_KEYSTONE_PATH/package/keystone-ipfs/Config.in"
+

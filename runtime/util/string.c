@@ -26,23 +26,40 @@ void* memcpy(void* dest, const void* src, size_t len)
 }
 
 
-void* memset(void* dest, int byte, size_t len)
-{
-  if ((((uintptr_t)dest | len) & (sizeof(uintptr_t)-1)) == 0) {
-    uintptr_t word = byte & 0xFF;
-    word |= word << 8;
-    word |= word << 16;
-    word |= word << 16 << 16;
+// void* memset(void* dest, int byte, size_t len)
+// {
+//   if ((((uintptr_t)dest | len) & (sizeof(uintptr_t)-1)) == 0) {
+//     uintptr_t word = byte & 0xFF;
+//     word |= word << 8;
+//     word |= word << 16;
+//     word |= word << 16 << 16;
 
-    uintptr_t *d = dest;
-    while (d < (uintptr_t*)(dest + len))
-      *d++ = word;
-  } else {
-    char *d = dest;
-    while (d < (char*)(dest + len))
-      *d++ = byte;
-  }
-  return dest;
+//     uintptr_t *d = dest;
+//     while (d < (uintptr_t*)(dest + len))
+//       *d++ = word;
+//   } else {
+//     char *d = dest;
+//     while (d < (char*)(dest + len))
+//       *d++ = byte;
+//   }
+//   return dest;
+// }
+
+void* __attribute__((noinline)) memset(void* dest, int byte, size_t len) {
+    volatile void* volatile_dest = dest;  // Make dest volatile
+    if ((((uintptr_t)dest | len) & (sizeof(uintptr_t) - 1)) == 0) {
+        uintptr_t word = byte & 0xFF;
+        word |= word << 8;
+        word |= word << 16;
+        word |= word << 16 << 16;
+
+        volatile uintptr_t* d = (volatile uintptr_t*)volatile_dest;
+        while (d < (volatile uintptr_t*)(volatile_dest + len)) *d++ = word;
+    } else {
+        volatile char* d = (volatile char*)volatile_dest;
+        while (d < (volatile char*)(volatile_dest + len)) *d++ = byte;
+    }
+    return dest;
 }
 
 int memcmp(const void* s1, const void* s2, size_t n)

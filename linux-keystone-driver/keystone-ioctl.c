@@ -9,6 +9,8 @@
 #include <linux/uaccess.h>
 #include <linux/string.h>
 
+extern spinlock_t YXSTM_spinlock;
+
 int __keystone_destroy_enclave(unsigned int ueid);
 
 int keystone_create_enclave(struct file *filep, unsigned long arg)
@@ -35,12 +37,66 @@ int keystone_create_enclave(struct file *filep, unsigned long arg)
   return 0;
 }
 
+extern struct GLOBAL_YXSTM global_yxstm;
+
+int YXSTM_init_ioctl(struct file *filep, unsigned long arg)
+{
+  int ret = 0;
+  struct YXSTM *YXSTM;
+  struct enclave *enclave;
+  struct keystone_ioctl_create_enclave *enclp = (struct keystone_ioctl_create_enclave *) arg;
+  long long unsigned YXSTrusted_size = enclp->YXSTM_size;
+  long long unsigned ms_YXSTM = enclp->ms;
+
+  enclave = get_enclave_by_id(enclp->eid);
+
+  if(!enclave) {
+    keystone_err("invalid enclave id\n");
+    return -EINVAL;
+  }
+
+  if(!ms_YXSTM) {
+    keystone_err("%s, error ms_YXSTM\n", __func__);
+    return -EINVAL;
+  }
+
+  YXSTM = kmalloc(sizeof(struct YXSTM), GFP_KERNEL);
+  if (!YXSTM) {
+    ret = -ENOMEM;
+    return ret;
+  }
+
+  spin_lock(&YXSTM_spinlock); // 获取锁
+  if(global_yxstm.globalCount == 0) {
+    global_yxstm.globalCount++;
+    ret = YXSTM_init(&global_yxstm.global_yxstm, YXSTrusted_size);
+    // keystone_info("YXSTM driver %s testing, ptr=%lu, size2=%lu, size3=%lu\n", __func__, global_yxstm.global_yxstm.ptr, global_yxstm.global_yxstm.size, YXSTrusted_size);
+  }
+
+  YXSTM->order            = global_yxstm.global_yxstm.order;
+  YXSTM->ptr              = global_yxstm.global_yxstm.ptr;
+  YXSTM->root_page_table  = global_yxstm.global_yxstm.root_page_table;
+  YXSTM->size             = global_yxstm.global_yxstm.size;
+
+  spin_unlock(&YXSTM_spinlock); // 释放锁
+
+  // keystone_info("YXSTM driver %s testing, ptr=%lu, size1=%lu, size2=%lu, size3=%lu\n", __func__, global_yxstm.global_yxstm.ptr, YXSTM->size, global_yxstm.global_yxstm.size, YXSTrusted_size);
+
+  enclave->ms = ms_YXSTM;
+  enclave->YXSTM = YXSTM;
+
+  enclp->YXSTM_paddr = __pa(YXSTM->ptr);
+
+  return ret;
+
+}
 
 int keystone_finalize_enclave(unsigned long arg)
 {
   struct sbiret ret;
   struct enclave *enclave;
   struct utm *utm;
+  struct YXSTM *YXSTM;
   struct keystone_sbi_create_t create_args;
 
   struct keystone_ioctl_create_enclave *enclp = (struct keystone_ioctl_create_enclave *) arg;
@@ -67,11 +123,32 @@ int keystone_finalize_enclave(unsigned long arg)
     create_args.utm_region.size = 0;
   }
 
+  YXSTM = enclave->YXSTM;
+
+  if (YXSTM) {
+    create_args.YXSTM_region.paddr = __pa(YXSTM->ptr);
+    create_args.YXSTM_region.size = YXSTM->size;
+
+    if(enclave->ms==0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+      goto error_destroy_enclave;
+    }
+
+  } else {
+    create_args.YXSTM_region.paddr = 0;
+    create_args.YXSTM_region.size = 0;
+    if(enclave->ms!=0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+      goto error_destroy_enclave;
+    }
+  }
+
   // physical addresses for runtime, user, and freemem
   create_args.runtime_paddr = enclp->runtime_paddr;
   create_args.user_paddr = enclp->user_paddr;
   create_args.free_paddr = enclp->free_paddr;
   create_args.free_requested = enclp->free_requested;
+  create_args.ms_YXSTM = enclave->ms;
 
   ret = sbi_sm_create_enclave(&create_args);
 
@@ -258,6 +335,9 @@ long keystone_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
      * We didn't identified the exact problem, so we'll have these until we figure out */
     case KEYSTONE_IOC_UTM_INIT:
       ret = utm_init_ioctl(filep, (unsigned long) data);
+      break;
+    case KEYSTONE_IOC_YXSTM_INIT:
+      ret = YXSTM_init_ioctl(filep, (unsigned long) data);
       break;
     default:
       return -ENOSYS;

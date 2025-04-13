@@ -17,6 +17,9 @@
 extern uintptr_t shared_buffer;
 extern uintptr_t shared_buffer_size;
 
+extern uintptr_t YXS_trusted_memory;
+extern uintptr_t YXS_trusted_memory_size;
+
 /* initial memory layout */
 uintptr_t utm_base;
 size_t utm_size;
@@ -97,6 +100,85 @@ eyrie_boot(uintptr_t dummy, // $a0 contains the return value from the SBI
 
   debug("ROOT PAGE TABLE: 0x%lx", root_page_table);
   debug("UTM : 0x%lx-0x%lx (%u KB)", utm_vaddr, utm_vaddr+utm_size, utm_size/1024);
+  debug("DRAM: 0x%lx-0x%lx (%u KB)", dram_base, dram_base + dram_size, dram_size/1024);
+  debug("USER: 0x%lx-0x%lx (%u KB)", user_paddr, free_paddr, (free_paddr-user_paddr)/1024);
+
+  /* set trap vector */
+  csr_write(stvec, &encl_trap_handler);
+  freemem_va_start = __va(free_paddr);
+  freemem_size = dram_base + dram_size - free_paddr;
+
+  debug("FREE: 0x%lx-0x%lx (%u KB), va 0x%lx", free_paddr, dram_base + dram_size, freemem_size/1024, freemem_va_start);
+
+  /* initialize free memory */
+  init_freemem();
+
+  /* load eapp elf */
+  assert(!verify_and_load_elf_file(__va(user_paddr), free_paddr-user_paddr, true));
+
+  /* free leaking memory */
+  // TODO: clean up after loader -- entire file no longer needed
+  // TODO: load elf file doesn't map some pages; those can be re-used. runtime and eapp.
+
+  //TODO: This should be set by walking the userspace vm and finding
+  //highest used addr. Instead we start partway through the anon space
+  set_program_break(EYRIE_ANON_REGION_START + (1024 * 1024 * 1024));
+
+  #ifdef USE_PAGING
+  init_paging(user_paddr, free_paddr);
+  #endif /* USE_PAGING */
+
+  /* initialize user stack */
+  init_user_stack_and_env((ELF(Ehdr) *) __va(user_paddr));
+
+  /* prepare edge & system calls */
+  init_edge_internals();
+
+  /* set timer */
+  init_timer();
+
+  /* Enable the FPU */
+  csr_write(sstatus, csr_read(sstatus) | 0x6000);
+
+  debug("eyrie boot finished. drop to the user land ...");
+  /* booting all finished, droping to the user land */
+  return;
+}
+
+void
+yx_eyrie_boot(uintptr_t dummy, // $a0 contains the return value from the SBI
+              uintptr_t dram_base,
+              uintptr_t dram_size,
+              uintptr_t runtime_paddr,
+              uintptr_t user_paddr,
+              uintptr_t free_paddr,
+              uintptr_t utm_vaddr,
+              uintptr_t utm_size,
+              uintptr_t YXSTM_vaddr,
+              uintptr_t YXSTM_size)
+{
+  /* set initial values */
+  load_pa_start = dram_base;
+  root_page_table = (pte*) __va(csr_read(satp) << RISCV_PAGE_BITS);
+  shared_buffer = EYRIE_UNTRUSTED_START;
+  shared_buffer_size = utm_size;
+  YXS_trusted_memory = EYRIE_YXSTRUSTED_START;
+  YXS_trusted_memory_size = YXSTM_size;
+  runtime_va_start = (uintptr_t) &rt_base;
+  kernel_offset = runtime_va_start - runtime_paddr;
+
+  // if (YXSTM_vaddr == YXSTM_size || YXSTM_size == 0) {
+  //   printf("[runtime] YXSTM testing 3 %s, YXSTM_vaddr:%lu, YXSTM_size:%lu, YXS_trusted_memory:%lu\n", __func__, YXSTM_vaddr, YXSTM_size, YXS_trusted_memory);
+  // } else {
+  //   printf("[runtime] YXSTM testing 3 %s, YXSTM_vaddr:%lu, YXSTM_size:%lu, YXS_trusted_memory:%lu\n", __func__, YXSTM_vaddr, YXSTM_size, YXS_trusted_memory);
+  //   printf("YXSTM : 0x%lx-0x%lx (%u KB)", YXSTM_vaddr, YXSTM_vaddr+YXSTM_size, YXSTM_size/1024);
+  //   printf("[runtime] YXSTM testing 3.1 %s, shared_buffer:%lu\n", __func__, shared_buffer);
+  //   printf("UTM : 0x%lx-0x%lx (%u KB)", utm_vaddr, utm_vaddr+utm_size, utm_size/1024);
+  // }
+
+  debug("ROOT PAGE TABLE: 0x%lx", root_page_table);
+  debug("UTM : 0x%lx-0x%lx (%u KB)", utm_vaddr, utm_vaddr+utm_size, utm_size/1024);
+  debug("YXSTM : 0x%lx-0x%lx (%u KB)", YXSTM_vaddr, YXSTM_vaddr+YXSTM_size, YXSTM_size/1024);
   debug("DRAM: 0x%lx-0x%lx (%u KB)", dram_base, dram_base + dram_size, dram_size/1024);
   debug("USER: 0x%lx-0x%lx (%u KB)", user_paddr, free_paddr, (free_paddr-user_paddr)/1024);
 

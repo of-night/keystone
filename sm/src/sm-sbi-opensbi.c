@@ -55,6 +55,24 @@ static int sbi_ecall_keystone_enclave_handler(unsigned long extid, unsigned long
     case SBI_SM_ATTEST_ENCLAVE:
       retval = sbi_sm_attest_enclave(regs->a0, regs->a1, regs->a2);
       break;
+    case SBI_SM_M_ENCLAVE_CREATE_GROUP:
+      retval = sbi_sm_m_enclave_create_group(regs->a0, regs->a1);
+      break;
+    case SBI_SM_S_ENCLAVE_JOIN_GROUP:
+      retval = sbi_sm_s_enclave_join_group(regs->a0, regs->a1);
+      break;
+    case SBI_SM_MAIN_ENCLAVE_GET_SLAVE_ENCLAVE_DATA:
+      retval = sbi_sm_main_enclave_get_slave_enclave_data_yx(regs->a0, regs->a1);
+      break;
+    case SBI_SM_SLAVE_ENCLAVE_SET_DATAPTR:
+      retval = sbi_sm_slave_enclave_set_dataptr_yx(regs->a0, regs->a1);
+      break;
+    case SBI_SM_M_ENCLAVE_YXSTM_GET_NUMBERBLOCK_PMP:
+      retval = sbi_sm_main_enclave_get_numberblock_set_pmp();
+      break;
+    case SBI_SM_S_ENCLAVE_YXSTM_SET_NUMBERBLOCK_PMP:
+      retval = sbi_sm_slave_enclave_set_numberblock_set_pmp();
+      break;
     case SBI_SM_GET_SEALING_KEY:
       retval = sbi_sm_get_sealing_key(regs->a0, regs->a1, regs->a2);
       break;

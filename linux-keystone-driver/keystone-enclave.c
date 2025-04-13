@@ -11,16 +11,30 @@ DEFINE_MUTEX(idr_enclave_lock);
 #define ENCLAVE_IDR_MIN 0x1000
 #define ENCLAVE_IDR_MAX 0xffff
 
+extern spinlock_t YXSTM_spinlock;
+
+struct GLOBAL_YXSTM global_yxstm = {
+  .global_yxstm = {
+    .ptr = NULL,
+    .size = 0,
+    .order = 0,
+    .root_page_table = NULL,
+  },
+  .globalCount = 0
+};
+
 /* Smart destroy, handles partial initialization of epm and utm etc */
 int destroy_enclave(struct enclave* enclave)
 {
   struct epm* epm;
   struct utm* utm;
+  struct YXSTM* YXSTM;
   if (enclave == NULL)
     return -ENOSYS;
 
   epm = enclave->epm;
   utm = enclave->utm;
+  YXSTM = enclave->YXSTM;
 
   if (epm)
   {
@@ -32,6 +46,24 @@ int destroy_enclave(struct enclave* enclave)
     utm_destroy(utm);
     kfree(utm);
   }
+  spin_lock(&YXSTM_spinlock); // 获取锁
+  if (YXSTM) {
+    // keystone_info("YXSTM driver testing %s, YXSTM not NULL, globalCount:%lu", __func__, global_yxstm.globalCount);
+    if ((global_yxstm.globalCount - 1) == 0) {
+      global_yxstm.globalCount--;
+      if (global_yxstm.global_yxstm.ptr) {
+        global_yxstm.global_yxstm.ptr = NULL;
+      }
+      if (YXSTM) {
+        YXSTM_destroy(YXSTM);
+      }
+    }
+    if (YXSTM) {
+      kfree(YXSTM);
+    }
+  }
+  spin_unlock(&YXSTM_spinlock); // 释放锁
+  
   kfree(enclave);
   return 0;
 }
@@ -48,6 +80,8 @@ struct enclave* create_enclave(unsigned long min_pages)
 
   enclave->eid = -1;
   enclave->utm = NULL;
+  enclave->YXSTM = NULL;
+  enclave->ms = 0;
   enclave->close_on_pexit = 1;
 
   enclave->epm = kmalloc(sizeof(struct epm), GFP_KERNEL);

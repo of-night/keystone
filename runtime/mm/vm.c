@@ -54,6 +54,10 @@ size_t freemem_size;
 uintptr_t shared_buffer;
 uintptr_t shared_buffer_size;
 
+/* YX share trusted memory */
+uintptr_t YXS_trusted_memory;
+uintptr_t YXS_trusted_memory_size;
+
 uintptr_t kernel_offset;
 uintptr_t load_pa_start;
 

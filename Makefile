@@ -14,6 +14,9 @@ export KEYSTONE_BR2_EXT         ?= $(KEYSTONE)/overlays
 
 export KEYSTONE_DRIVER          ?= $(KEYSTONE)/linux-keystone-driver
 export KEYSTONE_EXAMPLES        ?= $(KEYSTONE)/examples
+export KEYSTONE_DEMO	        ?= $(KEYSTONE)/demo
+export KEYSTONE_BENCH	        ?= $(KEYSTONE)/bench
+export KEYSTONE_IPFS	        ?= $(KEYSTONE)/ipfs
 export KEYSTONE_RUNTIME         ?= $(KEYSTONE)/runtime
 export KEYSTONE_SDK             ?= $(KEYSTONE)/sdk
 export KEYSTONE_BOOTROM         ?= $(KEYSTONE)/bootrom

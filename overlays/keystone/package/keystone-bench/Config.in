@@ -1,0 +1,8 @@
+config BR2_PACKAGE_KEYSTONE_BENCH
+        bool "Keystone bench"
+        depends on BR2_PACKAGE_HOST_KEYSTONE_SDK
+        depends on BR2_PACKAGE_KEYSTONE_RUNTIME
+        help
+          Bench applications for Keystone, showing a variety
+          of functionalities and features
+

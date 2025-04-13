@@ -20,7 +20,10 @@ HOST_KEYSTONE_SDK_DEPENDENCIES += toolchain
 # Clean dependant packages if we clean this one
 host-keystone-sdk-dirclean: keystone-examples-dirclean \
                                 keystone-sm-dirclean \
-                                keystone-driver-dirclean
+                                keystone-driver-dirclean \
+                                keystone-demo-dirclean \
+                                keystone-bench-dirclean
 
 $(eval $(host-keystone-package))
 $(eval $(host-cmake-package))
+

@@ -38,6 +38,13 @@ Verifier::verify_report(Report& report, const std::string& nonce) {
   byte expected_sm_hash[MDSIZE];
   compute_expected_sm_hash(expected_sm_hash);
 
+printf("expected enclave hash: ");
+for (int i = 0; i < MDSIZE; ++i) printf("%02x", expected_enclave_hash[i]);
+printf("\r\n");
+printf("expected SM      hash: ");
+for (int i = 0; i < MDSIZE; ++i) printf("%02x", expected_sm_hash[i]);
+printf("\r\n\r\n");
+
   verify_hashes(
       report, expected_enclave_hash, expected_sm_hash, _sanctum_dev_public_key);
 

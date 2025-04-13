@@ -30,6 +30,30 @@ unsigned long
 sbi_sm_attest_enclave(uintptr_t report, uintptr_t data, uintptr_t size);
 
 unsigned long
+sbi_sm_m_enclave_create_group(uintptr_t identity, uintptr_t size);
+
+unsigned long
+sbi_sm_s_enclave_join_group(uintptr_t identity, uintptr_t size);
+
+unsigned long
+sbi_sm_main_enclave_get_slave_enclave_data(uintptr_t dest, uintptr_t size, uintptr_t numbers);
+
+unsigned long
+sbi_sm_slave_enclave_set_dataptr(uintptr_t src, uintptr_t size, uintptr_t numbers);
+
+unsigned long
+sbi_sm_main_enclave_get_slave_enclave_data_yx(uintptr_t temp_ptr, uintptr_t dest_ptr);
+
+unsigned long
+sbi_sm_slave_enclave_set_dataptr_yx(uintptr_t temp_ptr, uintptr_t data_ptr);
+
+unsigned long
+sbi_sm_main_enclave_get_numberblock_set_pmp();
+
+unsigned long
+sbi_sm_slave_enclave_set_numberblock_set_pmp();
+
+unsigned long
 sbi_sm_get_sealing_key(uintptr_t seal_key, uintptr_t key_ident, size_t key_ident_size);
 
 unsigned long

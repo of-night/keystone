@@ -194,3 +194,77 @@ TRY_END(copy1out_check, t1, t2, t3, t4)
     UNSET_MPRV(t5)
     ret
 
+
+.global copy_block_s_to_m
+copy_block_s_to_m:
+    # Arguments:
+    # a0: dst
+    # a1: src
+    # Temporaries
+    # a2: mtvec
+    # a3: mepc
+    # a4: mcause
+    # a5: mstatus
+TRY(copy_ms_block_in_check, a2, a3, a4, a5)
+    SET_MPRV(t0)
+    LOAD t0, 0*REGBYTES(a1)
+    LOAD t1, 1*REGBYTES(a1)
+    LOAD t2, 2*REGBYTES(a1)
+    LOAD t3, 3*REGBYTES(a1)
+    LOAD t4, 4*REGBYTES(a1)
+    LOAD t5, 5*REGBYTES(a1)
+    LOAD t6, 6*REGBYTES(a1)
+    LOAD a6, 7*REGBYTES(a1)
+    STORE t0, 0*REGBYTES(a0)
+    STORE t1, 1*REGBYTES(a0)
+    STORE t2, 2*REGBYTES(a0)
+    STORE t3, 3*REGBYTES(a0)
+    STORE t4, 4*REGBYTES(a0)
+    STORE t5, 5*REGBYTES(a0)
+    STORE t6, 6*REGBYTES(a0)
+    STORE a6, 7*REGBYTES(a0)
+    UNSET_MPRV(a1)
+    li a0, 0
+CATCH_ERR(copy_ms_block_in_check, a1)
+    li a0, -1
+TRY_END(copy_ms_block_in_check, a2, a3, a4, a5)
+
+    UNSET_MPRV(t0)
+    ret
+
+
+.global copy_word_s_to_m
+copy_word_s_to_m:
+    # a0: dst
+    # a1: src
+TRY(copy_ms_word_in_check, t1, t2, t3, t4)
+    SET_MPRV(t5)
+    LOAD t0, 0x00(a1)
+    STORE t0, 0x00(a0)
+    UNSET_MPRV(t5)
+    li a0, 0
+CATCH_ERR(copy_ms_word_in_check, t5)
+    li a0, -1
+TRY_END(copy_ms_word_in_check, t1, t2, t3, t4)
+
+    UNSET_MPRV(t5)
+    ret
+
+
+.global copy1_s_to_m
+copy1_s_to_m:
+    # a0: dst
+    # a1: src
+TRY(copy1_sm_in_check, t1, t2, t3, t4)
+    SET_MPRV(t5)
+    lb t0, 0x00(a1)
+    sb t0, 0x00(a0)
+    UNSET_MPRV(t5)
+    li a0, 0
+CATCH_ERR(copy1_sm_in_check, t5)
+    li a0, -1
+TRY_END(copy1_sm_in_check, t1, t2, t3, t4)
+
+    UNSET_MPRV(t5)
+    ret
+

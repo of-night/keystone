@@ -12,12 +12,14 @@ _start:
   // a5: free_base
   // a6: untrusted_ptr
   // a7: untrusted_size
+  // t0: YXSTM_ptr
+  // t1: YXSTM_size
 
   // use designated stack
   la sp, _estack
 
   // save all args to stack 
-  addi sp, sp, -(REGBYTES*7)
+  addi sp, sp, -(REGBYTES*9)
   STORE a1, 0(sp)
   STORE a2, 1*REGBYTES(sp)
   STORE a3, 2*REGBYTES(sp)
@@ -25,9 +27,20 @@ _start:
   STORE a5, 4*REGBYTES(sp)
   STORE a6, 5*REGBYTES(sp)
   STORE a7, 6*REGBYTES(sp)
+  STORE t0, 7*REGBYTES(sp)
+  STORE t1, 8*REGBYTES(sp)
+
+  // 根据ABI 将参数压栈
+  addi sp, sp, -(REGBYTES*2)
+  STORE t0, 0*REGBYTES(sp)
+  STORE t1, 1*REGBYTES(sp)
 
   // call load_runtime
-  call load_runtime 
+  // call load_runtime 
+  call yx_load_runtime
+
+  // 恢复栈指针
+  addi sp, sp, (REGBYTES*2)
 
   // exit if errors
   bne a0, zero, exit
@@ -57,6 +70,8 @@ _start:
   LOAD a5, free_base_final
   LOAD a6, 5*REGBYTES(sp)
   LOAD a7, 6*REGBYTES(sp)
+  LOAD t0, 7*REGBYTES(sp)
+  LOAD t1, 8*REGBYTES(sp)
 
   // flush TLB's just in case
   fence.i

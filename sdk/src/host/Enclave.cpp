@@ -177,6 +177,14 @@ Enclave::init(
     destroy();
     return Error::DeviceError;
   }
+  if (params.getYXms() != 0) {
+    // Additional logic can be added here if needed
+    if (!pMemory->allocYXSTm(params.getYXShareTrustedMemSize(), params.getYXms())) {
+      ERROR("failed to init YX share trusted memory - ioctl() failed");
+      destroy();
+      return Error::DeviceError;
+    }
+  }
 	
   /* Copy loader into beginning of enclave memory */
   copyFile((uintptr_t) loaderFile->getPtr(), loaderFile->getFileSize());

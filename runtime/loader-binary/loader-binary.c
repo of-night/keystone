@@ -39,6 +39,18 @@ int map_untrusted_memory(uintptr_t untrusted_ptr, uintptr_t untrusted_size) {
   return 0;
 }
 
+int map_YXStrusted_memory(uintptr_t YXSTM_ptr, uintptr_t YXSTM_size) {
+  uintptr_t va        = EYRIE_YXSTRUSTED_START;
+  while (va < EYRIE_YXSTRUSTED_START + YXSTM_size) {
+    if (!map_page(vpn(va), ppn(YXSTM_ptr), PTE_W | PTE_R | PTE_D)) {
+      return -1;
+    }
+    va += RISCV_PAGE_SIZE;
+    YXSTM_ptr += RISCV_PAGE_SIZE;
+  }
+  return 0;
+}
+
 int load_runtime(uintptr_t dummy,
                 uintptr_t dram_base, uintptr_t dram_size, 
                 uintptr_t runtime_base, uintptr_t user_base, 
@@ -77,6 +89,63 @@ int load_runtime(uintptr_t dummy,
   ret = map_untrusted_memory(untrusted_ptr, untrusted_size);
   if (ret != 0) {
     return ret;
+  }
+
+  free_base_final = dram_base + dram_size - spa_available() * RISCV_PAGE_SIZE;
+
+  return ret;
+}
+
+int yx_load_runtime(uintptr_t dummy,
+                    uintptr_t dram_base, uintptr_t dram_size, 
+                    uintptr_t runtime_base, uintptr_t user_base, 
+                    uintptr_t free_base, uintptr_t untrusted_ptr, 
+                    uintptr_t untrusted_size, uintptr_t YXSTM_ptr, 
+                    uintptr_t YXSTM_size) {
+  int ret = 0;
+
+  root_page_table = root_page_table_storage;
+
+  // initialize freemem
+  spa_init(free_base, dram_base + dram_size - free_base);
+
+  // validate runtime elf 
+  size_t runtime_size = user_base - runtime_base;
+  if (((void*) runtime_base == NULL) || (runtime_size <= 0)) {
+    return -1; 
+  }
+
+  // create runtime elf struct
+  elf_t runtime_elf;
+  ret = elf_newFile((void*) runtime_base, runtime_size, &runtime_elf);
+  if (ret != 0) {
+    return ret;
+  }
+
+  // map runtime memory
+  ret = loadElf(&runtime_elf, 0);
+  if (ret != 0) {
+    return ret;
+  }
+
+  // map enclave physical memory, so that runtime will be able to access all memory
+  map_physical_memory(dram_base, dram_size);
+
+  // map untrusted memory
+  ret = map_untrusted_memory(untrusted_ptr, untrusted_size);
+  if (ret != 0) {
+    return ret;
+  }
+
+  // map YX share trusted memory
+  if (YXSTM_ptr == YXSTM_size || YXSTM_size == 0) {
+    // printf("[runtime] YXSTM testing 1 %s, YXSTM_ptr:%lu, YXSTM_size:%lu\n", __func__, YXSTM_ptr, YXSTM_size);
+  } else {
+    ret = map_YXStrusted_memory(YXSTM_ptr, YXSTM_size);
+    // printf("[runtime] YXSTM testing 2 %s, YXSTM_ptr:%lu, YXSTM_size:%lu\n", __func__, YXSTM_ptr, YXSTM_size);
+    if (ret != 0) {
+      return ret;
+    }
   }
 
   free_base_final = dram_base + dram_size - spa_available() * RISCV_PAGE_SIZE;

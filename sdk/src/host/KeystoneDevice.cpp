@@ -27,6 +27,19 @@ KeystoneDevice::create(uint64_t minPages) {
 }
 
 uintptr_t
+KeystoneDevice::initYXSTM(size_t size, uint64_t _ms) {
+  struct keystone_ioctl_create_enclave encl;
+  encl.eid        = eid;
+  encl.YXSTM_size = size;
+  encl.ms         = _ms;
+  if (ioctl(fd, KEYSTONE_IOC_YXSTM_INIT, &encl)) {
+    return 0;
+  }
+
+  return encl.YXSTM_paddr;
+}
+
+uintptr_t
 KeystoneDevice::initUTM(size_t size) {
   struct keystone_ioctl_create_enclave encl;
   encl.eid      = eid;
@@ -150,6 +163,11 @@ MockKeystoneDevice::create(uint64_t minPages) {
 
 uintptr_t
 MockKeystoneDevice::initUTM(size_t size) {
+  return 0;
+}
+
+uintptr_t
+MockKeystoneDevice::initYXSTM(size_t size, uint64_t _ms) {
   return 0;
 }
 

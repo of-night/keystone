@@ -116,7 +116,12 @@ _start:
   csrw sscratch, x0
 
   sfence.vma
-  jal eyrie_boot
+  addi sp, sp, -(REGBYTES*2)
+  STORE t0, 0*REGBYTES(sp)
+  STORE t1, 1*REGBYTES(sp)
+  // jal eyrie_boot
+  jal yx_eyrie_boot
+  addi sp, sp, (REGBYTES*2)
   sfence.vma
 
   /* set spp to user */

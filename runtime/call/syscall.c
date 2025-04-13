@@ -143,6 +143,124 @@ uintptr_t handle_copy_from_shared(void* dst, uintptr_t offset, size_t size){
   return copy_to_user(dst, (void*)src_ptr, size);
 }
 
+uintptr_t handle_get_numberBlock_from_YXSTM(void* dst, uintptr_t get_number, size_t size){
+
+  uintptr_t ret = 0;
+
+  unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
+  unsigned long long YXSTM_size       = YXS_trusted_memory_size;
+
+  if (sbi_main_enclave_get_numberblock_set_pmp()) {
+    ret = 1;
+    goto YXSTM_error;
+  }
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+
+  if (number <= 0) {
+    ret = 1;
+    goto YXSTM_error;
+  }
+
+  unsigned long long * number_ptr = YXSTM_start_ptr;
+  unsigned long long * length_ptr = YXSTM_start_ptr + number;
+  unsigned char * src_ptr         = (unsigned char *)(YXSTM_start_ptr + number + number);
+
+  unsigned long long src_offset = 0;
+
+  int i;
+  for (i = 0; i < number; ++i) {
+    if (get_number == number_ptr[i]) {
+      break;
+    }
+  }
+
+  unsigned char temp[17] = {0,};
+
+  if (i < number) {
+    src_offset = i << 18;
+    *((unsigned long long*)temp) = number_ptr[i];
+    *(((unsigned long long*)temp) + 1) = length_ptr[i];
+    temp[16] = 1;
+    if (copy_to_user(dst+17, (void*)(src_ptr + src_offset), length_ptr[i])) {
+      ret = 1;
+      goto YXSTM_error;
+    }
+    number_ptr[i] = 0;
+    length_ptr[i] = 0;
+  } else {
+    *((unsigned long long*)temp) = 0;
+    *(((unsigned long long*)temp) + 1) = 0;
+    temp[16] = 0;
+  }
+  
+  if (copy_to_user(dst, (void*)temp, 17)) {
+    ret = 1;
+    goto YXSTM_error;
+  }
+
+YXSTM_error:
+  return ret;
+}
+
+uintptr_t handle_set_numberBlock_to_YXSTM(void* src, uintptr_t set_number, size_t size){
+
+  uintptr_t ret = 0;
+
+  if (sbi_slave_enclave_set_numberblock_set_pmp()) {
+    ret = 1;
+    goto YXSTM_error;
+  }
+
+  unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
+  unsigned long long YXSTM_size       = YXS_trusted_memory_size;
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+
+  if (number <= 0) {
+    ret = 1;
+    goto YXSTM_error;
+  }
+  
+  unsigned long long * number_ptr = YXSTM_start_ptr;
+  unsigned long long * length_ptr = YXSTM_start_ptr + number;
+  unsigned char * dst_ptr         = (unsigned char *)(YXSTM_start_ptr + number + number);
+
+  unsigned long long dst_offset = 0;
+
+  int i;
+  for (i = 0; i < number; ++i) {
+    if ((number_ptr[i] == 0) && (length_ptr[i] == 0)) {
+      break;
+    }
+  }
+
+  unsigned char temp[17] = {0,};
+
+  if (i < number) {
+    dst_offset = i << 18;
+    if (copy_from_user((void*)(dst_ptr + dst_offset), src+17, size)) {
+      ret = 1;
+      goto YXSTM_error;
+    }
+    *((unsigned long long*)temp) = number_ptr[i] = set_number;
+    *(((unsigned long long*)temp) + 1) = length_ptr[i] = size;
+    temp[16] = 0;
+  } else {
+    *((unsigned long long*)temp) = 0;
+    *(((unsigned long long*)temp) + 1) = 0;
+    temp[16] = 1;
+  }
+
+  if (copy_to_user(src, (void*)temp, 17)) {
+    ret = 1;
+    goto YXSTM_error;
+  }
+
+YXSTM_error:
+  return ret;
+}
+
 void init_edge_internals(){
   edge_call_init_internals(shared_buffer, shared_buffer_size);
 }
@@ -173,6 +291,31 @@ void handle_syscall(struct encl_ctx* ctx)
     break;
   case(RUNTIME_SYSCALL_SHAREDCOPY):
     ret = handle_copy_from_shared((void*)arg0, arg1, arg2);
+    break;
+  case(RUNTIME_SYSCALL_CREATE_GROUP):
+    copy_from_user((void*)rt_copy_identity, (void*)arg0, arg1);
+    ret = sbi_m_enclave_create_group((void*)rt_copy_identity, arg1);
+    break;
+  case(RUNTIME_SYSCALL_JOIN_GROUP):
+    copy_from_user((void*)rt_copy_identity, (void*)arg0, arg1);
+    ret = sbi_s_enclave_join_group((void*)rt_copy_identity, arg1);
+    //处理返回结果待写
+    break;
+  case(RUNTIME_SYSCALL_MAIN_ENCLAVE_GET_SLAVE_ENCLAVE_DATA):;
+    copy_from_user((void*)rt_copy_slave_data, (void*)arg0, 16);
+    ret = sbi_main_enclave_get_slave_enclave_data_yx((void*)rt_copy_slave_data, (void*)(rt_copy_slave_data+17));
+    copy_to_user((void*)arg0, (void*)rt_copy_slave_data, 256*1024+8+8+1);
+    break;
+  case(RUNTIME_SYSCALL_SLAVE_ENCLAVE_SET_DATAPTR):;
+    copy_from_user((void*)rt_copy_slave_data, (void*)arg0, 256*1024+8+8+1);
+    ret = sbi_slave_enclave_set_dataptr_yx((void*)rt_copy_slave_data, (void*)(rt_copy_slave_data+17));
+    copy_to_user((void*)arg0, (void*)rt_copy_slave_data, 8+8+1);
+    break;
+  case(RUNTIME_SYSCALL_YXSTM_SET_NUMBERBLOCK):;
+    ret = handle_set_numberBlock_to_YXSTM((void*)arg0, arg1, arg2);
+    break;
+  case(RUNTIME_SYSCALL_YXSTM_GET_NUMBERBLOCK):;
+    ret = handle_get_numberBlock_from_YXSTM((void*)arg0, arg1, arg2);
     break;
   case(RUNTIME_SYSCALL_ATTEST_ENCLAVE):;
     copy_from_user((void*)rt_copy_buffer_2, (void*)arg1, arg2);

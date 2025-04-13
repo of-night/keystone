@@ -11,6 +11,10 @@ int copy1_to_sm(uint8_t *dst, uintptr_t src);
 int copy_word_to_sm(uintptr_t *dst, uintptr_t src);
 int copy_block_to_sm(mprv_block *dst, uintptr_t src);
 
+int copy1_s_to_m(uint8_t *dst, uint8_t *src);
+int copy_word_s_to_m(uintptr_t *dst, uintptr_t* src);
+int copy_block_s_to_m(mprv_block *dst, mprv_block *src);
+
 #if __riscv_xlen == 64
 # define STORE    sd
 # define LOAD     ld
@@ -91,6 +95,44 @@ static inline int copy_to_sm(void *dst_buf, uintptr_t src, size_t len)
 
     while (len > 0) {
         int res = copy1_to_sm((uint8_t *)dst, src);
+        if (res)
+            return res;
+
+        src++;
+        dst++;
+        len--;
+    }
+
+    return 0;
+}
+
+static inline int copy_s_to_m(uintptr_t dst, uintptr_t src, size_t len)
+{
+
+    if (src % REGBYTES == 0 && dst % REGBYTES == 0) {
+        while (len >= MPRV_BLOCK) {
+            int res = copy_block_s_to_m((mprv_block *)dst, (mprv_block *)src);
+            if (res)
+                return res;
+
+            src += MPRV_BLOCK;
+            dst += MPRV_BLOCK;
+            len -= MPRV_BLOCK;
+        }
+
+        while (len >= REGBYTES) {
+            int res = copy_word_s_to_m((uintptr_t *)dst, (uintptr_t *)src);
+            if (res)
+                return res;
+
+            src += REGBYTES;
+            dst += REGBYTES;
+            len -= REGBYTES;
+        }
+    }
+
+    while (len > 0) {
+        int res = copy1_s_to_m((uint8_t *)dst, (uint8_t *)src);
         if (res)
             return res;
 
