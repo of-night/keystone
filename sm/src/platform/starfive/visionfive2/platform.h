@@ -16,7 +16,7 @@ struct platform_enclave_data{
 
 // PMP configuration
 #define PMP_N_REG               8
-#define PMP_MAX_N_REGION        8
+#define PMP_MAX_N_REGION        14
 
 // CPU configuration
 #define MAX_HARTS               5

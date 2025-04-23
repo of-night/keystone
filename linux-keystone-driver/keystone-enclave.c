@@ -49,7 +49,7 @@ int destroy_enclave(struct enclave* enclave)
   spin_lock(&YXSTM_spinlock); // 获取锁
   if (YXSTM) {
     // keystone_info("YXSTM driver testing %s, YXSTM not NULL, globalCount:%lu", __func__, global_yxstm.globalCount);
-    if ((global_yxstm.globalCount - 1) == 0) {
+    if (global_yxstm.globalCount > 0) {
       global_yxstm.globalCount--;
       if (global_yxstm.global_yxstm.ptr) {
         global_yxstm.global_yxstm.ptr = NULL;

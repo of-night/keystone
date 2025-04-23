@@ -243,8 +243,8 @@ uintptr_t handle_set_numberBlock_to_YXSTM(void* src, uintptr_t set_number, size_
       ret = 1;
       goto YXSTM_error;
     }
-    *((unsigned long long*)temp) = number_ptr[i] = set_number;
     *(((unsigned long long*)temp) + 1) = length_ptr[i] = size;
+    *((unsigned long long*)temp) = number_ptr[i] = set_number;
     temp[16] = 0;
   } else {
     *((unsigned long long*)temp) = 0;

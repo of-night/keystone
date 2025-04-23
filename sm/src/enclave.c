@@ -12,12 +12,14 @@
 #include <sbi/riscv_asm.h>
 #include <sbi/riscv_locks.h>
 #include <sbi/sbi_console.h>
+#include <sbi/riscv_barrier.h>
 
 struct enclave enclaves[ENCL_MAX];
 
 ms_group ms_group_list[MAX_MS_GROUP]; // 从属 enclave 组列表
 
-static int YXSTM_sm_init = 0;
+static volatile int YXSTM_sm_init = 0;
+static volatile int YXSTM_sm_fleible = 0;
 
 // Enclave IDs are unsigned ints, so we do not need to check if eid is
 // greater than or equal to 0
@@ -430,7 +432,8 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   params.YXSTrusted_base = YXSTbase;
   params.YXSTrusted_size = YXSTsize;
 
-  if (ms_YXSTM == 0) {
+  YXSTM_sm_fleible = ms_YXSTM;
+  if (YXSTM_sm_fleible == 0) {
     params.YXSTrusted_base = 0;
     params.YXSTrusted_size = 0;
   }
@@ -447,20 +450,30 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   if(pmp_region_init_atomic(base, size, PMP_PRI_ANY, &region, 0))
     goto free_encl_idx;
 
+  // sbi_printf("YXSTM sm testing %s\t, eid:%u, base:%lu ,size:%lu, flexible:%u\n", __func__, eid, base, size, YXSTM_sm_fleible);
+
   // create PMP region for shared memory
   if(pmp_region_init_atomic(utbase, utsize, PMP_PRI_BOTTOM, &shared_region, 0))
     goto free_region;
 
   spin_lock(&encl_lock);
-  if (ms_YXSTM) {
-    // sbi_printf("YXSTM sm testing 1 %s\t,YXSTbase:%lu ,YXSTsize:%lu\n", __func__, YXSTbase, YXSTsize);
+  if (YXSTM_sm_fleible) {
     if (YXSTM_sm_init == 0) {
+      // sbi_printf("YXSTM sm testing 1 %s\t,YXSTbase:%lu ,YXSTsize:%lu\n", __func__, YXSTbase, YXSTsize);
       if(pmp_region_init_atomic(YXSTbase, YXSTsize, PMP_PRI_ANY, &YXSTM_region, 0)) {
         spin_unlock(&encl_lock);
         goto free_shared_region;
       }
       YXSTM_sm_init = YXSTM_region;
+      spin_unlock(&encl_lock);
+      // set pmp registers for private region YXSTM
+      if(pmp_set_global(YXSTM_region, PMP_NO_PERM)) {
+        YXSTM_sm_init = YXSTM_region = 0;
+        goto free_YXSTM_region;
+      }
+      spin_lock(&encl_lock);
     } else {
+      // 将YXSTM的pmp信息共享给其他enclave
       YXSTM_region = YXSTM_sm_init;
     }
     // sbi_printf("YXSTM sm testing 2 %s\t,YXSTbase:%lu ,YXSTsize:%lu, YXSTM_region:%d\n", __func__, YXSTbase, YXSTsize, YXSTM_region);
@@ -474,7 +487,7 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   // cleanup some memory regions for sanity See issue #38
   clean_enclave_memory(utbase, utsize);
 
-  if (ms_YXSTM) {
+  if (YXSTM_sm_fleible) {
     clean_enclave_YXST_memory(YXSTbase, YXSTsize);
   }
 
@@ -490,7 +503,7 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   enclaves[eid].regions[0].type = REGION_EPM;
   enclaves[eid].regions[1].pmp_rid = shared_region;
   enclaves[eid].regions[1].type = REGION_UTM;
-  if (ms_YXSTM) {
+  if (YXSTM_sm_fleible) {
     enclaves[eid].regions[2].pmp_rid = YXSTM_region;
     enclaves[eid].regions[2].type = REGION_EPM;
   }
@@ -589,10 +602,35 @@ unsigned long destroy_enclave(enclave_id eid)
     // sbi_printf("YXSTM testing 1 %s , free region:%d\n", __func__, rid);
 
     //1.b free pmp region
+    // if (YXSTM_sm_init == rid) {
+    //   spin_lock(&encl_lock);
+    //   YXSTM_sm_fleible--;
+    //   if (YXSTM_sm_fleible == 0) {
+    //     YXSTM_sm_init = 0;
+    //     sbi_printf("sm pmp testing free YXSTM pmp, %s\n", __func__);
+    //     spin_unlock(&encl_lock);
+    //     pmp_unset_global(rid);
+    //     pmp_region_free_atomic(rid);
+    //   } else {
+    //     spin_unlock(&encl_lock);
+    //   }
+    //   continue;
+    // }
     if (YXSTM_sm_init == rid) {
-      YXSTM_sm_init = 0;
-      pmp_unset_global(rid);
-      pmp_region_free_atomic(rid);
+      spin_lock(&encl_lock);
+      YXSTM_sm_fleible--;
+      unsigned int is_last = (YXSTM_sm_fleible == 0);
+      if (is_last) {
+        YXSTM_sm_init = 0;
+      }
+
+      spin_unlock(&encl_lock);
+
+      if (is_last) {
+        // sbi_printf("sm pmp testing free YXSTM pmp, %s\n", __func__);
+        pmp_unset_global(rid);
+        pmp_region_free_atomic(rid);
+      }
       continue;
     }
     pmp_unset_global(rid);
@@ -619,8 +657,7 @@ unsigned long destroy_enclave(enclave_id eid)
       if (ms_group_list[i].m != NULL && ms_group_list[i].m == &enclaves[eid].m) {
         if (enclaves[eid].m.slave_numbers != 0) {
           enclaves[eid].m.slave_numbers = 0;
-          // sbi_printf("set slave_number and YXSTM_sm_init = 0\n");
-          YXSTM_sm_init = 0;
+          // sbi_printf("set slave_number\n");
         }
         ms_group_list[i].isCreated = 0;
         break;
