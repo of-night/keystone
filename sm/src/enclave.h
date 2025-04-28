@@ -168,6 +168,8 @@ unsigned long slave_enclave_set_numberblock_set_pmp(enclave_id eid);
 
 unsigned long main_enclave_get_numberblock_set_pmp(enclave_id eid);
 
+unsigned long other_enclave_access_stm_test_set_pmp(enclave_id eid);
+
 // attestation
 unsigned long validate_and_hash_enclave(struct enclave* enclave);
 // TODO: These functions are supposed to be internal functions.

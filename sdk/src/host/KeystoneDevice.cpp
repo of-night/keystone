@@ -135,6 +135,64 @@ KeystoneDevice::resume(uintptr_t* ret) {
   return __run(true, ret);
 }
 
+Error
+KeystoneDevice::test_os_access_run(uintptr_t* ret, bool test_os_access_stm) {
+  return __test_os_access_run(test_os_access_stm, false, ret);
+}
+
+Error
+KeystoneDevice::test_os_access_resume(uintptr_t* ret, bool test_os_access_stm) {
+  return __test_os_access_run(test_os_access_stm, true, ret);
+}
+
+Error
+KeystoneDevice::__test_os_access_run(bool test_os_access_stm, bool resume, uintptr_t* ret) {
+  struct keystone_ioctl_run_enclave encl;
+  encl.eid = eid;
+
+  Error error;
+  uint64_t request;
+
+  if (resume) {
+    if (test_os_access_stm) {
+      error   = Error::IoctlErrorResume;
+      request = KEYSTONE_IOC_TEST_OS_ACCESS_STM_RESUME_ENCLAVE;
+    } else {
+      error   = Error::IoctlErrorResume;
+      request = KEYSTONE_IOC_TEST_OS_ACCESS_EPM_RESUME_ENCLAVE;
+    }
+  } else {
+    if (test_os_access_stm) {
+      error   = Error::IoctlErrorRun;
+      request = KEYSTONE_IOC_TEST_OS_ACCESS_STM_RUN_ENCLAVE;
+    } else {
+      error   = Error::IoctlErrorResume;
+      request = KEYSTONE_IOC_TEST_OS_ACCESS_EPM_RUN_ENCLAVE;
+    }
+  }
+
+  if (ioctl(fd, request, &encl)) {
+    return error;
+  }
+
+  switch (encl.error) {
+    case SBI_ERR_SM_ENCLAVE_EDGE_CALL_HOST:
+      return Error::EdgeCallHost;
+    case SBI_ERR_SM_ENCLAVE_INTERRUPTED:
+      return Error::EnclaveInterrupted;
+    case SBI_ERR_SM_ENCLAVE_SUCCESS:
+      if (ret) {
+        *ret = encl.value;
+      }
+      return Error::Success;
+    default:
+      ERROR(
+          "Unknown SBI error (%d) returned by %s_enclave\n", encl.error,
+          resume ? "resume" : "run");
+      return error;
+  }
+}
+
 void*
 KeystoneDevice::map(uintptr_t addr, size_t size) {
   assert(fd >= 0);
@@ -190,6 +248,17 @@ MockKeystoneDevice::run(uintptr_t* ret) {
 
 Error
 MockKeystoneDevice::resume(uintptr_t* ret) {
+  return Error::Success;
+}
+
+
+Error
+MockKeystoneDevice::test_os_access_run(uintptr_t* ret, bool test_os_access_stm) {
+  return Error::Success;
+}
+
+Error
+MockKeystoneDevice::test_os_access_resume(uintptr_t* ret, bool test_os_access_stm) {
   return Error::Success;
 }
 

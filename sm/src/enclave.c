@@ -1283,3 +1283,15 @@ unsigned long main_enclave_get_numberblock_set_pmp(enclave_id eid) {
   }
   return 0;
 }
+
+unsigned long other_enclave_access_stm_test_set_pmp(enclave_id eid){
+  int memid;
+  for(memid=0; memid < ENCLAVE_REGIONS_MAX; memid++) {
+    if(enclaves[eid].regions[memid].type != REGION_INVALID) {
+      if (enclaves[eid].regions[memid].pmp_rid == YXSTM_sm_init && YXSTM_sm_init != 0) {
+        pmp_set_keystone(enclaves[eid].regions[memid].pmp_rid, PMP_NO_PERM);
+      }
+    }
+  }
+  return 0;
+}

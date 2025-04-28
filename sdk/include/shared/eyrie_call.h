@@ -12,6 +12,7 @@
 #define RUNTIME_SYSCALL_JOIN_GROUP                          1008
 #define RUNTIME_SYSCALL_YXSTM_SET_NUMBERBLOCK               1009
 #define RUNTIME_SYSCALL_YXSTM_GET_NUMBERBLOCK               1010
+#define RUNTIME_SYSCALL_STM_ACCESS_TEST                     1011
 #define RUNTIME_SYSCALL_EXIT                1101
 
 #endif  // __EYRIE_CALL_H__

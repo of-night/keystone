@@ -54,6 +54,9 @@ unsigned long
 sbi_sm_slave_enclave_set_numberblock_set_pmp();
 
 unsigned long
+sbi_sm_other_enclave_access_stm_test_set_pmp();
+
+unsigned long
 sbi_sm_get_sealing_key(uintptr_t seal_key, uintptr_t key_ident, size_t key_ident_size);
 
 unsigned long

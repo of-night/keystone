@@ -73,6 +73,9 @@ int
 slave_enclave_set_numberblock(void* src, size_t set_number, size_t size);
 
 int
+other_enclave_access_stm_test();
+
+int
 get_sealing_key(
     struct sealing_key* sealing_key_struct, size_t sealing_key_struct_size,
     void* key_ident, size_t key_ident_size);

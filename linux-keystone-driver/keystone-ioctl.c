@@ -157,6 +157,12 @@ int keystone_finalize_enclave(unsigned long arg)
     goto error_destroy_enclave;
   }
 
+  // char testaccess[4*1024] = {0,};
+  // memcpy((void*)testaccess, (void*)enclave->epm->ptr, 4*1024);
+  // keystone_info("test os access epm fault! memcpy errors test %s\n",__func__);
+  // memset((void*)enclave->epm->ptr, 0, 4 * 1024);
+  // keystone_info("test os access epm fault! errors test %s\n",__func__);
+
   enclave->eid = ret.value;
 
   return 0;
@@ -297,6 +303,184 @@ int keystone_resume_enclave(unsigned long data)
   return 0;
 }
 
+int keystone_test_os_access_stm_run_enclave(unsigned long data)
+{
+  struct sbiret ret;
+  unsigned long ueid;
+  struct enclave* enclave;
+  struct keystone_ioctl_run_enclave *arg = (struct keystone_ioctl_run_enclave*) data;
+
+  ueid = arg->eid;
+  enclave = get_enclave_by_id(ueid);
+
+  if (!enclave) {
+    keystone_err("invalid enclave id\n");
+    return -EINVAL;
+  }
+
+  if (enclave->eid < 0) {
+    keystone_err("real enclave does not exist\n");
+    return -EINVAL;
+  }
+
+  ret = sbi_sm_run_enclave(enclave->eid);
+
+  struct YXSTM *YXSTM;
+  YXSTM = enclave->YXSTM;
+
+  char testaccess[4*1024] = {0,};
+
+  if (YXSTM) {
+    if(enclave->ms==0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+      keystone_err("no ms, cant test os_access_stm, func:%s\n", __func__);
+    }
+    memcpy((void*)testaccess, (void*)YXSTM->ptr, 4*1024);
+    // ruguokeyifangwenzehuishuchuxiamiandeyuju
+    keystone_info("os_access_stm fault! memcpy test error, func:%s\n", __func__);
+    memset((void*)YXSTM->ptr, 0, 4*1024);
+    keystone_info("os_access_stm fault! memset test error, func:%s\n", __func__);
+
+  } else {
+    keystone_err("dont allocated stm, func:%s\n", __func__);
+    if(enclave->ms!=0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+    }
+  }
+
+  arg->error = ret.error;
+  arg->value = ret.value;
+
+  return 0;
+}
+
+int keystone_test_os_access_stm_resume_enclave(unsigned long data)
+{
+  struct sbiret ret;
+  struct keystone_ioctl_run_enclave *arg = (struct keystone_ioctl_run_enclave*) data;
+  unsigned long ueid = arg->eid;
+  struct enclave* enclave;
+  enclave = get_enclave_by_id(ueid);
+
+  if (!enclave)
+  {
+    keystone_err("invalid enclave id\n");
+    return -EINVAL;
+  }
+
+  if (enclave->eid < 0) {
+    keystone_err("real enclave does not exist\n");
+    return -EINVAL;
+  }
+
+  ret = sbi_sm_resume_enclave(enclave->eid);
+
+  struct YXSTM *YXSTM;
+  YXSTM = enclave->YXSTM;
+
+  char testaccess[4*1024] = {0,};
+
+  if (YXSTM) {
+    if(enclave->ms==0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+      keystone_err("no ms, cant test os_access_stm, func:%s\n", __func__);
+    }
+    memcpy((void*)testaccess, (void*)YXSTM->ptr, 4*1024);
+    // ruguokeyifangwenzehuishuchuxiamiandeyuju
+    keystone_info("os_access_stm fault! memcpy test error, func:%s\n", __func__);
+    memset((void*)YXSTM->ptr, 0, 4*1024);
+    keystone_info("os_access_stm fault! memset test error, func:%s\n", __func__);
+
+  } else {
+    keystone_err("dont allocated stm, func:%s\n", __func__);
+    if(enclave->ms!=0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+    }
+  }
+
+  arg->error = ret.error;
+  arg->value = ret.value;
+
+  return 0;
+}
+
+int keystone_test_os_access_epm_run_enclave(unsigned long data)
+{
+  struct sbiret ret;
+  unsigned long ueid;
+  struct enclave* enclave;
+  struct keystone_ioctl_run_enclave *arg = (struct keystone_ioctl_run_enclave*) data;
+
+  ueid = arg->eid;
+  enclave = get_enclave_by_id(ueid);
+
+  if (!enclave) {
+    keystone_err("invalid enclave id\n");
+    return -EINVAL;
+  }
+
+  if (enclave->eid < 0) {
+    keystone_err("real enclave does not exist\n");
+    return -EINVAL;
+  }
+
+  ret = sbi_sm_run_enclave(enclave->eid);
+
+  struct epm *epm;
+  epm = enclave->epm;
+
+  char testaccess[4*1024] = {0,};
+
+  memcpy((void*)testaccess, (void*)epm->ptr, 4*1024);
+  // ruguokeyifangwenzehuishuchuxiamiandeyuju
+  keystone_info("os_access_epm fault! memcpy test error, func:%s\n", __func__);
+  memset((void*)epm->ptr, 0, 4*1024);
+  keystone_info("os_access_epm fault! memset test error, func:%s\n", __func__);
+
+  arg->error = ret.error;
+  arg->value = ret.value;
+
+  return 0;
+}
+
+int keystone_test_os_access_epm_resume_enclave(unsigned long data)
+{
+  struct sbiret ret;
+  struct keystone_ioctl_run_enclave *arg = (struct keystone_ioctl_run_enclave*) data;
+  unsigned long ueid = arg->eid;
+  struct enclave* enclave;
+  enclave = get_enclave_by_id(ueid);
+
+  if (!enclave)
+  {
+    keystone_err("invalid enclave id\n");
+    return -EINVAL;
+  }
+
+  if (enclave->eid < 0) {
+    keystone_err("real enclave does not exist\n");
+    return -EINVAL;
+  }
+
+  ret = sbi_sm_resume_enclave(enclave->eid);
+
+  struct epm *epm;
+  epm = enclave->epm;
+
+  char testaccess[4*1024] = {0,};
+
+  memcpy((void*)testaccess, (void*)epm->ptr, 4*1024);
+  // ruguokeyifangwenzehuishuchuxiamiandeyuju
+  keystone_info("os_access_epm fault! memcpy test error, func:%s\n", __func__);
+  memset((void*)epm->ptr, 0, 4*1024);
+  keystone_info("os_access_epm fault! memset test error, func:%s\n", __func__);
+
+  arg->error = ret.error;
+  arg->value = ret.value;
+
+  return 0;
+}
+
 long keystone_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 {
   long ret;
@@ -328,6 +512,18 @@ long keystone_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
       break;
     case KEYSTONE_IOC_RESUME_ENCLAVE:
       ret = keystone_resume_enclave((unsigned long) data);
+      break;
+    case KEYSTONE_IOC_TEST_OS_ACCESS_STM_RUN_ENCLAVE:
+      ret = keystone_test_os_access_stm_run_enclave((unsigned long) data);
+      break;
+    case KEYSTONE_IOC_TEST_OS_ACCESS_STM_RESUME_ENCLAVE:
+      ret = keystone_test_os_access_stm_resume_enclave((unsigned long) data);
+      break;
+    case KEYSTONE_IOC_TEST_OS_ACCESS_EPM_RUN_ENCLAVE:
+      ret = keystone_test_os_access_epm_run_enclave((unsigned long) data);
+      break;
+    case KEYSTONE_IOC_TEST_OS_ACCESS_EPM_RESUME_ENCLAVE:
+      ret = keystone_test_os_access_epm_resume_enclave((unsigned long) data);
       break;
     /* Note that following commands could have been implemented as a part of ADD_PAGE ioctl.
      * However, there was a weird bug in compiler that generates a wrong control flow

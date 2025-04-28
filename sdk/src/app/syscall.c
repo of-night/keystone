@@ -64,6 +64,11 @@ main_enclave_get_numberblock(void* dest, size_t set_number, size_t size) {
   return SYSCALL_3(RUNTIME_SYSCALL_YXSTM_GET_NUMBERBLOCK, dest, set_number, size);
 }
 
+int
+other_enclave_access_stm_test() {
+  return SYSCALL_0(RUNTIME_SYSCALL_STM_ACCESS_TEST);
+}
+
 /* returns sealing key */
 int
 get_sealing_key(

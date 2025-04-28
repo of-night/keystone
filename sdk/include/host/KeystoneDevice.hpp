@@ -31,6 +31,7 @@ class KeystoneDevice {
  private:
   int fd;
   Error __run(bool resume, uintptr_t* ret);
+  Error __test_os_access_run(bool test_os_access_stm, bool resume, uintptr_t* ret);
 
  public:
   virtual uintptr_t getPhysAddr() { return physAddr; }
@@ -47,6 +48,8 @@ class KeystoneDevice {
   virtual Error destroy();
   virtual Error run(uintptr_t* ret);
   virtual Error resume(uintptr_t* ret);
+  virtual Error test_os_access_run(uintptr_t* ret, bool test_os_access_stm);
+  virtual Error test_os_access_resume(uintptr_t* ret, bool test_os_access_stm);
   virtual void* map(uintptr_t addr, size_t size);
 };
 
@@ -68,6 +71,8 @@ class MockKeystoneDevice : public KeystoneDevice {
   Error destroy();
   Error run(uintptr_t* ret);
   Error resume(uintptr_t* ret);
+  Error test_os_access_run(uintptr_t* ret, bool test_os_access_stm);
+  Error test_os_access_resume(uintptr_t* ret, bool test_os_access_stm);
   void* map(uintptr_t addr, size_t size);
 };
 

@@ -113,6 +113,11 @@ sbi_main_enclave_get_numberblock_set_pmp() {
 }
 
 uintptr_t
+sbi_other_enclave_access_stm_test_set_pmp() {
+  return SBI_CALL_0(SBI_EXT_EXPERIMENTAL_KEYSTONE_ENCLAVE, SBI_SM_O_ENCLAVE_ACCESS_STM_TEST_SET_PMP);
+}
+
+uintptr_t
 sbi_get_sealing_key(uintptr_t key_struct, uintptr_t key_ident, uintptr_t len) {
   return SBI_CALL_3(SBI_EXT_EXPERIMENTAL_KEYSTONE_ENCLAVE, SBI_SM_GET_SEALING_KEY, key_struct, key_ident, len);
 }

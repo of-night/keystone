@@ -44,5 +44,7 @@ uintptr_t
 sbi_slave_enclave_set_numberblock_set_pmp();
 uintptr_t
 sbi_main_enclave_get_numberblock_set_pmp();
+uintptr_t
+sbi_other_enclave_access_stm_test_set_pmp();
 
 #endif

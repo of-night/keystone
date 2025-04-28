@@ -260,6 +260,46 @@ Enclave::run(uintptr_t* retval) {
   return Error::Success;
 }
 
+Error
+Enclave::test_os_access_epm_run(uintptr_t* retval) {
+  Error ret = pDevice->test_os_access_run(retval, false);
+  while (ret == Error::EdgeCallHost || ret == Error::EnclaveInterrupted) {
+    /* enclave is stopped in the middle. */
+    if (ret == Error::EdgeCallHost && oFuncDispatch != NULL) {
+      oFuncDispatch(getSharedBuffer());
+    }
+    ret = pDevice->test_os_access_resume(retval, false);
+  }
+
+  if (ret != Error::Success) {
+    ERROR("test os access epm failed to run enclave - ioctl() failed");
+    destroy();
+    return Error::DeviceError;
+  }
+
+  return Error::Success;
+}
+
+Error
+Enclave::test_os_access_stm_run(uintptr_t* retval) {
+  Error ret = pDevice->test_os_access_run(retval, true);
+  while (ret == Error::EdgeCallHost || ret == Error::EnclaveInterrupted) {
+    /* enclave is stopped in the middle. */
+    if (ret == Error::EdgeCallHost && oFuncDispatch != NULL) {
+      oFuncDispatch(getSharedBuffer());
+    }
+    ret = pDevice->test_os_access_resume(retval, true);
+  }
+
+  if (ret != Error::Success) {
+    ERROR("test os access stm failed to run enclave - ioctl() failed");
+    destroy();
+    return Error::DeviceError;
+  }
+
+  return Error::Success;
+}
+
 void*
 Enclave::getSharedBuffer() {
   return shared_buffer;

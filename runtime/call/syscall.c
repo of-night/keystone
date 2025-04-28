@@ -143,6 +143,29 @@ uintptr_t handle_copy_from_shared(void* dst, uintptr_t offset, size_t size){
   return copy_to_user(dst, (void*)src_ptr, size);
 }
 
+// test other enclave access stm
+// 不需要从other enclave eapp 中获取数据只需要让other enclave runtime 向stm中写入数据
+uintptr_t handle_STM_TEST_OTHER_ENCLAVE_ACCESS() {
+
+  unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
+  // unsigned long long YXSTM_size       = YXS_trusted_memory_size;
+
+  // 本来是有权限的
+  memset((void*)YXSTM_start_ptr, 0, 8);
+  printf("pmp rwx=111 memset stm successed.\n");
+
+  // 让SM将该enclave对stm的权限由rxw=111 ==> rwx=000
+  if (sbi_other_enclave_access_stm_test_set_pmp()) {
+    printf("pmp set error\n");
+    return 1;
+  }
+  memset((void*)YXSTM_start_ptr, 0, 8);
+  // 如果没出错则会输出下面
+  printf("pmp rwx=000 memset stm successed.\n");
+
+  return 0;
+}
+
 uintptr_t handle_get_numberBlock_from_YXSTM(void* dst, uintptr_t get_number, size_t size){
 
   uintptr_t ret = 0;
@@ -150,10 +173,10 @@ uintptr_t handle_get_numberBlock_from_YXSTM(void* dst, uintptr_t get_number, siz
   unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
   unsigned long long YXSTM_size       = YXS_trusted_memory_size;
 
-  if (sbi_main_enclave_get_numberblock_set_pmp()) {
-    ret = 1;
-    goto YXSTM_error;
-  }
+  // if (sbi_main_enclave_get_numberblock_set_pmp()) {
+  //   ret = 1;
+  //   goto YXSTM_error;
+  // }
 
   int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
 
@@ -207,10 +230,10 @@ uintptr_t handle_set_numberBlock_to_YXSTM(void* src, uintptr_t set_number, size_
 
   uintptr_t ret = 0;
 
-  if (sbi_slave_enclave_set_numberblock_set_pmp()) {
-    ret = 1;
-    goto YXSTM_error;
-  }
+  // if (sbi_slave_enclave_set_numberblock_set_pmp()) {
+  //   ret = 1;
+  //   goto YXSTM_error;
+  // }
 
   unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
   unsigned long long YXSTM_size       = YXS_trusted_memory_size;
@@ -316,6 +339,9 @@ void handle_syscall(struct encl_ctx* ctx)
     break;
   case(RUNTIME_SYSCALL_YXSTM_GET_NUMBERBLOCK):;
     ret = handle_get_numberBlock_from_YXSTM((void*)arg0, arg1, arg2);
+    break;
+  case(RUNTIME_SYSCALL_STM_ACCESS_TEST):;
+    ret = handle_STM_TEST_OTHER_ENCLAVE_ACCESS();
     break;
   case(RUNTIME_SYSCALL_ATTEST_ENCLAVE):;
     copy_from_user((void*)rt_copy_buffer_2, (void*)arg1, arg2);
