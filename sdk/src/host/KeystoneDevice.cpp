@@ -26,6 +26,23 @@ KeystoneDevice::create(uint64_t minPages) {
   return Error::Success;
 }
 
+Error
+KeystoneDevice::test_other_os_access_epm_create(uint64_t minPages) {
+  struct keystone_ioctl_create_enclave encl;
+  encl.min_pages = minPages;
+
+  if (ioctl(fd, KEYSTONE_IOC_TEST_OTHER_OS_ACCESS_EPM_CREATE_ENCLAVE, &encl)) {
+    perror("ioctl error");
+    eid = -1;
+    return Error::IoctlErrorCreate;
+  }
+
+  eid      = encl.eid;
+  physAddr = encl.epm_paddr;
+
+  return Error::Success;
+}
+
 uintptr_t
 KeystoneDevice::initYXSTM(size_t size, uint64_t _ms) {
   struct keystone_ioctl_create_enclave encl;
@@ -63,6 +80,24 @@ KeystoneDevice::finalize(
   encl.free_requested = freeRequested;
 
   if (ioctl(fd, KEYSTONE_IOC_FINALIZE_ENCLAVE, &encl)) {
+    perror("ioctl error");
+    return Error::IoctlErrorFinalize;
+  }
+  return Error::Success;
+}
+
+Error
+KeystoneDevice::test_other_os_access_epm_finalize(
+    uintptr_t runtimePhysAddr, uintptr_t eappPhysAddr, uintptr_t freePhysAddr,
+    uintptr_t freeRequested) {
+  struct keystone_ioctl_create_enclave encl;
+  encl.eid            = eid;
+  encl.runtime_paddr  = runtimePhysAddr;
+  encl.user_paddr     = eappPhysAddr;
+  encl.free_paddr     = freePhysAddr;
+  encl.free_requested = freeRequested;
+
+  if (ioctl(fd, KEYSTONE_IOC_TEST_OTHER_OS_ACCESS_EPM_FINALIZE_ENCLAVE, &encl)) {
     perror("ioctl error");
     return Error::IoctlErrorFinalize;
   }
@@ -219,6 +254,12 @@ MockKeystoneDevice::create(uint64_t minPages) {
   return Error::Success;
 }
 
+Error
+MockKeystoneDevice::test_other_os_access_epm_create(uint64_t minPages) {
+  eid = -1;
+  return Error::Success;
+}
+
 uintptr_t
 MockKeystoneDevice::initUTM(size_t size) {
   return 0;
@@ -231,6 +272,13 @@ MockKeystoneDevice::initYXSTM(size_t size, uint64_t _ms) {
 
 Error
 MockKeystoneDevice::finalize(
+    uintptr_t runtimePhysAddr, uintptr_t eappPhysAddr, uintptr_t freePhysAddr,
+    uintptr_t freeRequested) {
+  return Error::Success;
+}
+
+Error
+MockKeystoneDevice::test_other_os_access_epm_finalize(
     uintptr_t runtimePhysAddr, uintptr_t eappPhysAddr, uintptr_t freePhysAddr,
     uintptr_t freeRequested) {
   return Error::Success;

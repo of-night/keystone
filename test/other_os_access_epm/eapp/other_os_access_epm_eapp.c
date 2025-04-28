@@ -27,7 +27,7 @@ int main() {
 
     // test
     if (start_offset == 1) {
-        other_enclave_access_stm_test();
+        // other_enclave_access_stm_test();
     } else {
         ocall_dispath_get_wrapper(&edgedata);
         if (edgedata.size != sizeof(start_offset)) {

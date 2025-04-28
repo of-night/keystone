@@ -74,6 +74,31 @@ Enclave::prepareEnclaveMemory(size_t requiredPages, uintptr_t alternatePhysAddr)
   return true;
 }
 
+bool
+Enclave::test_other_os_access_epm_prepareEnclaveMemory(size_t requiredPages, uintptr_t alternatePhysAddr) {
+  // FIXME: this will be deprecated with complete freemem support.
+  // We just add freemem size for now.
+  uint64_t minPages;
+  minPages = ROUND_UP(params.getFreeMemSize(), PAGE_BITS) / PAGE_SIZE; 
+  minPages += requiredPages;
+
+  /* Call Enclave Driver */
+  if (pDevice->test_other_os_access_epm_create(minPages) != Error::Success) {
+    return false;
+  }
+
+  /* We switch out the phys addr as needed */
+  uintptr_t physAddr;
+  if (alternatePhysAddr) {
+    physAddr = alternatePhysAddr;
+  } else {
+    physAddr = pDevice->getPhysAddr();
+  }
+
+  pMemory->init(pDevice, physAddr, minPages);
+  return true;
+}
+
 void
 Enclave::copyFile(uintptr_t filePtr, size_t fileSize) {
 	uintptr_t startOffset = pMemory->getCurrentOffset(); 
@@ -198,6 +223,82 @@ Enclave::init(
   pMemory->startFreeMem();
 
   if (pDevice->finalize(
+          pMemory->getRuntimePhysAddr(), pMemory->getEappPhysAddr(),
+          pMemory->getFreePhysAddr(), params.getFreeMemSize()) != Error::Success) {
+    destroy();
+    return Error::DeviceError;
+  }
+  if (!mapUntrusted(params.getUntrustedSize())) {
+    ERROR(
+        "failed to finalize enclave - cannot obtain the untrusted buffer "
+        "pointer \n");
+    destroy();
+    return Error::DeviceMemoryMapError;
+  }
+
+  /* ELF files are no longer needed */
+  delete enclaveFile;
+  delete runtimeFile;
+  delete loaderFile;
+  return Error::Success;
+}
+
+Error
+Enclave::test_other_os_access_epm_init(const char* eapppath, const char* runtimepath, const char* loaderpath, Params _params) {
+  return this->test_other_os_access_epm_init(eapppath, runtimepath, loaderpath, _params, (uintptr_t)0);
+}
+
+Error
+Enclave::test_other_os_access_epm_init(
+    const char* eapppath, const char* runtimepath, const char* loaderpath, Params _params,
+    uintptr_t alternatePhysAddr) {
+  params = _params;
+
+  pMemory = new PhysicalEnclaveMemory();
+  pDevice = new KeystoneDevice();
+
+  ElfFile* enclaveFile = new ElfFile(eapppath);
+  ElfFile* runtimeFile = new ElfFile(runtimepath);
+  ElfFile* loaderFile = new ElfFile(loaderpath);
+
+  if (!pDevice->initDevice(params)) {
+    destroy();
+    return Error::DeviceInitFailure;
+  }
+
+  ElfFile* elfFiles[3] = {enclaveFile, runtimeFile, loaderFile};
+  size_t requiredPages = calculate_required_pages(elfFiles, 3);
+
+  if (!test_other_os_access_epm_prepareEnclaveMemory(requiredPages, alternatePhysAddr)) {
+    destroy();
+    return Error::DeviceError;
+  }
+  if (!pMemory->allocUtm(params.getUntrustedSize())) {
+    ERROR("failed to init untrusted memory - ioctl() failed");
+    destroy();
+    return Error::DeviceError;
+  }
+  if (params.getYXms() != 0) {
+    // Additional logic can be added here if needed
+    if (!pMemory->allocYXSTm(params.getYXShareTrustedMemSize(), params.getYXms())) {
+      ERROR("failed to init YX share trusted memory - ioctl() failed");
+      destroy();
+      return Error::DeviceError;
+    }
+  }
+	
+  /* Copy loader into beginning of enclave memory */
+  copyFile((uintptr_t) loaderFile->getPtr(), loaderFile->getFileSize());
+
+  pMemory->startRuntimeMem();
+  copyFile((uintptr_t) runtimeFile->getPtr(), runtimeFile->getFileSize());
+
+  pMemory->startEappMem();
+  copyFile((uintptr_t) enclaveFile->getPtr(), enclaveFile->getFileSize());
+
+  pMemory->startFreeMem();
+
+  if (pDevice->test_other_os_access_epm_finalize(
           pMemory->getRuntimePhysAddr(), pMemory->getEappPhysAddr(),
           pMemory->getFreePhysAddr(), params.getFreeMemSize()) != Error::Success) {
     destroy();

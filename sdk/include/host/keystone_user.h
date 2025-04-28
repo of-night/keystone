@@ -36,6 +36,10 @@
   _IOR(KEYSTONE_IOC_MAGIC, 0x0b, struct keystone_ioctl_create_enclave)
 #define KEYSTONE_IOC_TEST_OS_ACCESS_EPM_RESUME_ENCLAVE \
   _IOR(KEYSTONE_IOC_MAGIC, 0x0c, struct keystone_ioctl_create_enclave)
+#define KEYSTONE_IOC_TEST_OTHER_OS_ACCESS_EPM_CREATE_ENCLAVE \
+  _IOR(KEYSTONE_IOC_MAGIC, 0x0d, struct keystone_ioctl_create_enclave)
+#define KEYSTONE_IOC_TEST_OTHER_OS_ACCESS_EPM_FINALIZE_ENCLAVE \
+  _IOR(KEYSTONE_IOC_MAGIC, 0x0e, struct keystone_ioctl_create_enclave)
 
 #define RT_NOEXEC 0
 #define USER_NOEXEC 1

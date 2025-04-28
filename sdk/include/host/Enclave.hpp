@@ -48,6 +48,7 @@ class Enclave {
   bool initFiles(const char*, const char*);
   bool initDevice();
   bool prepareEnclaveMemory(size_t requiredPages, uintptr_t alternatePhysAddr);
+  bool test_other_os_access_epm_prepareEnclaveMemory(size_t requiredPages, uintptr_t alternatePhysAddr);
   bool initMemory();
 
  public:
@@ -62,6 +63,10 @@ class Enclave {
   Error registerOcallDispatch(OcallFunc func);
   Error init(const char* filepath, const char* runtime, const char* loaderpath, Params parameters);
   Error init(
+      const char* eapppath, const char* runtimepath, const char* loaderpath, Params _params,
+      uintptr_t alternatePhysAddr);
+  Error test_other_os_access_epm_init(const char* filepath, const char* runtime, const char* loaderpath, Params parameters);
+  Error test_other_os_access_epm_init(
       const char* eapppath, const char* runtimepath, const char* loaderpath, Params _params,
       uintptr_t alternatePhysAddr);
   Error destroy();

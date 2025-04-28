@@ -11,6 +11,8 @@
 
 extern spinlock_t YXSTM_spinlock;
 
+static unsigned long testaccess_other_os_access_epm = -1UL;
+
 int __keystone_destroy_enclave(unsigned int ueid);
 
 int keystone_create_enclave(struct file *filep, unsigned long arg)
@@ -162,6 +164,132 @@ int keystone_finalize_enclave(unsigned long arg)
   // keystone_info("test os access epm fault! memcpy errors test %s\n",__func__);
   // memset((void*)enclave->epm->ptr, 0, 4 * 1024);
   // keystone_info("test os access epm fault! errors test %s\n",__func__);
+
+  enclave->eid = ret.value;
+
+  return 0;
+
+error_destroy_enclave:
+  /* This can handle partial initialization failure */
+  destroy_enclave(enclave);
+
+  return -EINVAL;
+
+}
+
+int keystone_test_other_os_access_epm_create_enclave(struct file *filep, unsigned long arg)
+{
+  /* create parameters */
+  struct keystone_ioctl_create_enclave *enclp = (struct keystone_ioctl_create_enclave *) arg;
+
+  struct enclave *enclave;
+  enclave = create_enclave(enclp->min_pages);
+
+  if (enclave == NULL) {
+    return -ENOMEM;
+  }
+
+  /* Pass base page table */
+  enclp->epm_paddr = enclave->epm->pa;
+  enclp->epm_size = enclave->epm->size;
+
+  /* allocate UID */
+  enclp->eid = enclave_idr_alloc(enclave);
+
+  spin_lock(&YXSTM_spinlock);
+  if (testaccess_other_os_access_epm == -1UL) {
+    testaccess_other_os_access_epm = enclp->eid;
+  }
+  spin_unlock(&YXSTM_spinlock);
+
+  filep->private_data = (void *) enclp->eid;
+
+  return 0;
+}
+
+int keystone_test_other_os_access_epm_finalize_enclave(unsigned long arg)
+{
+  struct sbiret ret;
+  struct enclave *enclave;
+  struct utm *utm;
+  struct YXSTM *YXSTM;
+  struct keystone_sbi_create_t create_args;
+
+  struct keystone_ioctl_create_enclave *enclp = (struct keystone_ioctl_create_enclave *) arg;
+
+  enclave = get_enclave_by_id(enclp->eid);
+  if(!enclave) {
+    keystone_err("invalid enclave id\n");
+    return -EINVAL;
+  }
+
+  enclave->is_init = false;
+
+  /* SBI Call */
+  create_args.epm_region.paddr = enclave->epm->pa;
+  create_args.epm_region.size = enclave->epm->size;
+
+  utm = enclave->utm;
+
+  if (utm) {
+    create_args.utm_region.paddr = __pa(utm->ptr);
+    create_args.utm_region.size = utm->size;
+  } else {
+    create_args.utm_region.paddr = 0;
+    create_args.utm_region.size = 0;
+  }
+
+  YXSTM = enclave->YXSTM;
+
+  if (YXSTM) {
+    create_args.YXSTM_region.paddr = __pa(YXSTM->ptr);
+    create_args.YXSTM_region.size = YXSTM->size;
+
+    if(enclave->ms==0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+      goto error_destroy_enclave;
+    }
+
+  } else {
+    create_args.YXSTM_region.paddr = 0;
+    create_args.YXSTM_region.size = 0;
+    if(enclave->ms!=0){
+      keystone_err("%s, error enclp->ms\n", __func__);
+      goto error_destroy_enclave;
+    }
+  }
+
+  // physical addresses for runtime, user, and freemem
+  create_args.runtime_paddr = enclp->runtime_paddr;
+  create_args.user_paddr = enclp->user_paddr;
+  create_args.free_paddr = enclp->free_paddr;
+  create_args.free_requested = enclp->free_requested;
+  create_args.ms_YXSTM = enclave->ms;
+
+  ret = sbi_sm_create_enclave(&create_args);
+
+  spin_lock(&YXSTM_spinlock);
+  struct enclave *testaccess_other_os_access_enclave = NULL;
+  if (testaccess_other_os_access_epm != enclp->eid && testaccess_other_os_access_epm != -1UL) {
+    testaccess_other_os_access_enclave = get_enclave_by_id(testaccess_other_os_access_epm);
+  }
+  spin_unlock(&YXSTM_spinlock);
+
+  keystone_info("testaccess_other_os_access_epm:%ul, eid:%lu func:%s\n",testaccess_other_os_access_epm, enclp->eid, __func__);
+
+  if (testaccess_other_os_access_enclave) {
+    char testaccess[4*1024] = {0,};
+    memcpy((void*)testaccess, (void*)testaccess_other_os_access_enclave->epm->ptr, 4*1024);
+    // ruguokeyifangwenzehuishuchuxiamiandeyuju
+    keystone_info("other_os_access_epm fault! memcpy test error, func:%s\n", __func__);
+    memset((void*)testaccess_other_os_access_enclave->epm->ptr, 0, 4*1024);
+    keystone_info("other_os_access_epm fault! memset test error, func:%s\n", __func__);
+  }
+
+  if (ret.error) {
+    keystone_err("keystone_create_enclave: SBI call failed with error code %ld\n", ret.error);
+    goto error_destroy_enclave;
+  }
 
   enclave->eid = ret.value;
 
@@ -524,6 +652,12 @@ long keystone_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
       break;
     case KEYSTONE_IOC_TEST_OS_ACCESS_EPM_RESUME_ENCLAVE:
       ret = keystone_test_os_access_epm_resume_enclave((unsigned long) data);
+      break;
+    case KEYSTONE_IOC_TEST_OTHER_OS_ACCESS_EPM_CREATE_ENCLAVE:
+      ret = keystone_test_other_os_access_epm_create_enclave(filep, (unsigned long) data);
+      break;
+    case KEYSTONE_IOC_TEST_OTHER_OS_ACCESS_EPM_FINALIZE_ENCLAVE:
+      ret = keystone_test_other_os_access_epm_finalize_enclave((unsigned long) data);
       break;
     /* Note that following commands could have been implemented as a part of ADD_PAGE ioctl.
      * However, there was a weird bug in compiler that generates a wrong control flow
