@@ -39,7 +39,7 @@ riscv64-buildroot-linux-gnu-g++ -o ./test/other_enclave_access_stm/other_enclave
 	-static
 
 # eyrie-rt
-cp build-starfive/visionfive264/buildroot.build/build/keystone-examples-d494a0e382852bce/hello/eyrie-rt ./test/other_enclave_access_stm/
+cp build-starfive/visionfive264/buildroot.build/build/${EXAMPLES_DIR_NAME}/hello/eyrie-rt ./test/other_enclave_access_stm/
 
 # loader.bin
-cp build-starfive/visionfive264/buildroot.build/build/keystone-examples-d494a0e382852bce/hello/loader.bin ./test/other_enclave_access_stm/
+cp build-starfive/visionfive264/buildroot.build/build/${EXAMPLES_DIR_NAME}/hello/loader.bin ./test/other_enclave_access_stm/

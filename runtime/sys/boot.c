@@ -167,6 +167,11 @@ yx_eyrie_boot(uintptr_t dummy, // $a0 contains the return value from the SBI
   runtime_va_start = (uintptr_t) &rt_base;
   kernel_offset = runtime_va_start - runtime_paddr;
 
+  /* test other enclave access epm */
+  test_other_enclave_access_epm = dram_base;
+  // // morenzhixuyao8B
+  // test_other_enclave_access_epm_size;
+
   // if (YXSTM_vaddr == YXSTM_size || YXSTM_size == 0) {
   //   printf("[runtime] YXSTM testing 3 %s, YXSTM_vaddr:%lu, YXSTM_size:%lu, YXS_trusted_memory:%lu\n", __func__, YXSTM_vaddr, YXSTM_size, YXS_trusted_memory);
   // } else {

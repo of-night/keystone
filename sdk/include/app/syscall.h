@@ -76,6 +76,12 @@ int
 other_enclave_access_stm_test();
 
 int
+other_enclave_access_epm_test_o(void* flag);
+
+int
+other_enclave_access_epm_test_s(void* flag);
+
+int
 get_sealing_key(
     struct sealing_key* sealing_key_struct, size_t sealing_key_struct_size,
     void* key_ident, size_t key_ident_size);

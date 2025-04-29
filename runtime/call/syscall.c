@@ -166,6 +166,150 @@ uintptr_t handle_STM_TEST_OTHER_ENCLAVE_ACCESS() {
   return 0;
 }
 
+int map_TEST_OTHER_ENCLAVE_ACCESS_EPM(uintptr_t TEST_ACCESS_EPM_ptr, uintptr_t TEST_ACCESS_EPM_size) {
+  uintptr_t va        = EYRIE_TEST_OTHER_ENCLAVE_ACCESS_EPM;
+  while (va < EYRIE_TEST_OTHER_ENCLAVE_ACCESS_EPM + TEST_ACCESS_EPM_size) {
+    if (!map_page(vpn(va), ppn(TEST_ACCESS_EPM_ptr), PTE_W | PTE_R | PTE_D)) {
+      return -1;
+    }
+    va += RISCV_PAGE_SIZE;
+    TEST_ACCESS_EPM_ptr += RISCV_PAGE_SIZE;
+  }
+  return 0;
+}
+
+// test other enclave access epm
+// meixiewan
+uintptr_t handle_TEST_OTHER_ENCLAVE_ACCESS_EPM_O(void* arg0) {
+
+  // 通过stm接收epm物理地址
+  // 
+  unsigned long long flag = 0;
+  if (copy_from_user((void*)&flag, arg0, sizeof(unsigned long long))) {
+    return 1;
+  }
+
+  unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
+  unsigned long long YXSTM_size       = YXS_trusted_memory_size;
+  unsigned long long MAX_YXSTM_ptr    = (unsigned long long)((unsigned char*)YXSTM_start_ptr + YXSTM_size);
+
+  struct YXSTM_USE {
+    unsigned long long *YXSTM_USE_flag_ptr;
+    unsigned long long YXSTM_USE_data_offset;
+    unsigned long long YXSTM_USE_data_size;
+  };
+
+  struct YXSTM_USE YXSTM_use = {
+    .YXSTM_USE_flag_ptr = YXSTM_start_ptr,
+    .YXSTM_USE_data_offset = 1,
+    .YXSTM_USE_data_size = 8
+  };
+  // YXSTM_use.YXSTM_USE_flag_ptr = YXSTM_start_ptr;
+  // YXSTM_use.YXSTM_USE_data_offset = 1;
+
+  uintptr_t epm_base_ptr = 0;
+
+  int i = 0;
+  for (i = 0; i < YXSTM_use.YXSTM_USE_data_offset; ++i) {
+    if (*(YXSTM_use.YXSTM_USE_flag_ptr + i) == 0) {
+      unsigned long long *YXSTM_USE_data_ptr = YXSTM_use.YXSTM_USE_flag_ptr + YXSTM_use.YXSTM_USE_data_offset*2 + i*YXSTM_use.YXSTM_USE_data_size;
+      if ((unsigned long long)((unsigned char*)YXSTM_USE_data_ptr + sizeof(test_other_enclave_access_epm)) <= MAX_YXSTM_ptr) {
+        epm_base_ptr = *YXSTM_USE_data_ptr;
+        *(YXSTM_use.YXSTM_USE_flag_ptr + i) = 0;
+        flag = 1;
+        if (copy_to_user(arg0, (void*)&flag, sizeof(unsigned long long))) {
+          return 1;
+        }
+      } else {
+        printf("YXSTM size too small\n");
+      }
+      break;
+    }
+  }
+
+  if (i >= YXSTM_use.YXSTM_USE_data_offset) {
+    flag = 0;
+    if (copy_to_user(arg0, (void*)&flag, sizeof(unsigned long long))) {
+      return 1;
+    }
+  }
+
+  // 将物理地址映射到EYRIE_TEST_OTHER_ENCLAVE_ACCESS_EPM
+  // 默认使用8B大小
+  uintptr_t test_other_enclave_access_epm_size = 8;
+  //
+  map_TEST_OTHER_ENCLAVE_ACCESS_EPM(epm_base_ptr, test_other_enclave_access_epm_size);
+
+  uintptr_t test_other_enclave_access_epm_base_memory = EYRIE_TEST_OTHER_ENCLAVE_ACCESS_EPM;
+
+  // 测试
+  memset((void*)test_other_enclave_access_epm_base_memory, 0, test_other_enclave_access_epm_size);
+  // 如果没出错则会输出下面
+  printf("memset epm successed. test other enclave access epm error! \n");
+
+  return 0;
+}
+
+// test other enclave access epm
+// meixiewan
+uintptr_t handle_TEST_OTHER_ENCLAVE_ACCESS_EPM_S(void* arg0) {
+
+  // 通过stm发送epm物理地址
+  // 
+  unsigned long long flag = 1;
+  if (copy_from_user((void*)&flag, arg0, sizeof(unsigned long long))) {
+    return 1;
+  }
+
+  unsigned long long *YXSTM_start_ptr = (unsigned long long *)YXS_trusted_memory;
+  unsigned long long YXSTM_size       = YXS_trusted_memory_size;
+  unsigned long long MAX_YXSTM_ptr    = (unsigned long long)((unsigned char*)YXSTM_start_ptr + YXSTM_size);
+
+  struct YXSTM_USE {
+    unsigned long long *YXSTM_USE_flag_ptr;
+    unsigned long long YXSTM_USE_data_offset;
+    unsigned long long YXSTM_USE_data_size;
+  };
+
+  struct YXSTM_USE YXSTM_use = {
+    .YXSTM_USE_flag_ptr = YXSTM_start_ptr,
+    .YXSTM_USE_data_offset = 1,
+    .YXSTM_USE_data_size = 8
+  };
+  // YXSTM_use.YXSTM_USE_flag_ptr = YXSTM_start_ptr;
+  // YXSTM_use.YXSTM_USE_data_offset = 1;
+
+  int i = 0;
+  for (i = 0; i < YXSTM_use.YXSTM_USE_data_offset; ++i) {
+    if (*(YXSTM_use.YXSTM_USE_flag_ptr + i) == 0) {
+      unsigned long long *YXSTM_USE_data_ptr = YXSTM_use.YXSTM_USE_flag_ptr + YXSTM_use.YXSTM_USE_data_offset*2 + i*YXSTM_use.YXSTM_USE_data_size;
+      if ((unsigned long long)((unsigned char*)YXSTM_USE_data_ptr + sizeof(test_other_enclave_access_epm)) <= MAX_YXSTM_ptr) {
+        *YXSTM_USE_data_ptr = test_other_enclave_access_epm;
+        *(YXSTM_use.YXSTM_USE_flag_ptr + i) = 1;
+        flag = 0;
+        if (copy_to_user(arg0, (void*)&flag, sizeof(unsigned long long))) {
+          return 1;
+        }
+      } else {
+        printf("YXSTM size too small\n");
+      }
+      break;
+    }
+  }
+
+  if (i >= YXSTM_use.YXSTM_USE_data_offset) {
+    flag = 1;
+    if (copy_to_user(arg0, (void*)&flag, sizeof(unsigned long long))) {
+      return 1;
+    }
+  }
+
+  // // 默认使用8B大小
+  // int test_other_enclave_access_epm_size = 8;
+
+  return 0;
+}
+
 uintptr_t handle_get_numberBlock_from_YXSTM(void* dst, uintptr_t get_number, size_t size){
 
   uintptr_t ret = 0;
@@ -342,6 +486,12 @@ void handle_syscall(struct encl_ctx* ctx)
     break;
   case(RUNTIME_SYSCALL_STM_ACCESS_TEST):;
     ret = handle_STM_TEST_OTHER_ENCLAVE_ACCESS();
+    break;
+  case(RUNTIME_SYSCALL_TEST_OTHER_ENCLAVE_ACCESS_EPM_O):;
+    ret = handle_TEST_OTHER_ENCLAVE_ACCESS_EPM_O((void*)arg0);
+    break;
+  case(RUNTIME_SYSCALL_TEST_OTHER_ENCLAVE_ACCESS_EPM_S):;
+    ret = handle_TEST_OTHER_ENCLAVE_ACCESS_EPM_S((void*)arg0);
     break;
   case(RUNTIME_SYSCALL_ATTEST_ENCLAVE):;
     copy_from_user((void*)rt_copy_buffer_2, (void*)arg1, arg2);

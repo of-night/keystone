@@ -58,6 +58,11 @@ uintptr_t shared_buffer_size;
 uintptr_t YXS_trusted_memory;
 uintptr_t YXS_trusted_memory_size;
 
+/* test other enclave access epm */
+uintptr_t test_other_enclave_access_epm;
+// // morenzhixuyao8B
+// extern uintptr_t test_other_enclave_access_epm_size;
+
 uintptr_t kernel_offset;
 uintptr_t load_pa_start;
 

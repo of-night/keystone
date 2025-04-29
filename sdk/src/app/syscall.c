@@ -69,6 +69,16 @@ other_enclave_access_stm_test() {
   return SYSCALL_0(RUNTIME_SYSCALL_STM_ACCESS_TEST);
 }
 
+int
+other_enclave_access_epm_test_o(void* flag) {
+  return SYSCALL_1(RUNTIME_SYSCALL_TEST_OTHER_ENCLAVE_ACCESS_EPM_O, flag);
+}
+
+int
+other_enclave_access_epm_test_s(void* flag) {
+  return SYSCALL_1(RUNTIME_SYSCALL_TEST_OTHER_ENCLAVE_ACCESS_EPM_S, flag);
+}
+
 /* returns sealing key */
 int
 get_sealing_key(
