@@ -281,7 +281,8 @@ int keystone_test_other_os_access_epm_finalize_enclave(unsigned long arg)
     char testaccess[4*1024] = {0,};
     memcpy((void*)testaccess, (void*)testaccess_other_os_access_enclave->epm->ptr, 4*1024);
     // ruguokeyifangwenzehuishuchuxiamiandeyuju
-    keystone_info("other_os_access_epm fault! memcpy test error, func:%s\n", __func__);
+    keystone_info("other_os_access_epm fault! memcpy test error, func:%s, cpy_dst_data:%02x\n", __func__, testaccess[5]);
+		keystone_info("other_os_access_epm fault! memcpy test error, func:%s, cpy_src_data:%02x\n", __func__, *(((char *)testaccess_other_os_access_enclave->epm->ptr) + 5));
     memset((void*)testaccess_other_os_access_enclave->epm->ptr, 0, 4*1024);
     keystone_info("other_os_access_epm fault! memset test error, func:%s\n", __func__);
   }
@@ -465,7 +466,8 @@ int keystone_test_os_access_stm_run_enclave(unsigned long data)
     }
     memcpy((void*)testaccess, (void*)YXSTM->ptr, 4*1024);
     // ruguokeyifangwenzehuishuchuxiamiandeyuju
-    keystone_info("os_access_stm fault! memcpy test error, func:%s\n", __func__);
+		keystone_info("os_access_stm fault! memcpy test error, func:%s, cpy_dst_data:%02x\n", __func__, testaccess[5]);
+		keystone_info("os_access_stm fault! memcpy test error, func:%s, cpy_src_data:%02x\n", __func__, *(((char *)YXSTM->ptr) + 5));
     memset((void*)YXSTM->ptr, 0, 4*1024);
     keystone_info("os_access_stm fault! memset test error, func:%s\n", __func__);
 
@@ -515,7 +517,8 @@ int keystone_test_os_access_stm_resume_enclave(unsigned long data)
     }
     memcpy((void*)testaccess, (void*)YXSTM->ptr, 4*1024);
     // ruguokeyifangwenzehuishuchuxiamiandeyuju
-    keystone_info("os_access_stm fault! memcpy test error, func:%s\n", __func__);
+		keystone_info("os_access_stm fault! memcpy test error, func:%s, cpy_dst_data:%02x\n", __func__, testaccess[5]);
+		keystone_info("os_access_stm fault! memcpy test error, func:%s, cpy_src_data:%02x\n", __func__, *(((char *)YXSTM->ptr) + 5));
     memset((void*)YXSTM->ptr, 0, 4*1024);
     keystone_info("os_access_stm fault! memset test error, func:%s\n", __func__);
 
@@ -561,7 +564,8 @@ int keystone_test_os_access_epm_run_enclave(unsigned long data)
 
   memcpy((void*)testaccess, (void*)epm->ptr, 4*1024);
   // ruguokeyifangwenzehuishuchuxiamiandeyuju
-  keystone_info("os_access_epm fault! memcpy test error, func:%s\n", __func__);
+	keystone_info("os_access_epm fault! memcpy test error, func:%s, cpy_dst_data:%02x\n", __func__, testaccess[5]);
+	keystone_info("os_access_epm fault! memcpy test error, func:%s, cpy_src_data:%02x\n", __func__, *(((char *)epm->ptr) + 5));
   memset((void*)epm->ptr, 0, 4*1024);
   keystone_info("os_access_epm fault! memset test error, func:%s\n", __func__);
 
@@ -599,7 +603,8 @@ int keystone_test_os_access_epm_resume_enclave(unsigned long data)
 
   memcpy((void*)testaccess, (void*)epm->ptr, 4*1024);
   // ruguokeyifangwenzehuishuchuxiamiandeyuju
-  keystone_info("os_access_epm fault! memcpy test error, func:%s\n", __func__);
+	keystone_info("os_access_epm fault! memcpy test error, func:%s, cpy_dst_data:%02x\n", __func__, testaccess[5]);
+	keystone_info("os_access_epm fault! memcpy test error, func:%s, cpy_src_data:%02x\n", __func__, *(((char *)epm->ptr) + 5));
   memset((void*)epm->ptr, 0, 4*1024);
   keystone_info("os_access_epm fault! memset test error, func:%s\n", __func__);
 
