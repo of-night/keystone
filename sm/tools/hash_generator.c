@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
   }
 
   int result = fread (buf,1,fwsize,fw);
-printf("fwsize: %d\n", result);
+// printf("fwsize: %d\n", result);
   if (result != fwsize) {
     printf("Failed to read file\n");
     return -1;
