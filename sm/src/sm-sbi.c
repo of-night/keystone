@@ -141,6 +141,18 @@ unsigned long sbi_sm_other_enclave_access_stm_test_set_pmp() {
   return ret;
 }
 
+unsigned long sbi_sm_s_enclave_attested(uintptr_t report, uintptr_t nonce, uintptr_t kg) {
+  unsigned long ret;
+  ret = s_enclave_attested(cpu_get_enclave_id(), report, nonce, kg);
+  return ret;
+}
+
+unsigned long sbi_sm_m_enclave_attest_s_enclave(uintptr_t report, uintptr_t kg, uintptr_t flag) {
+  unsigned long ret;
+  ret = m_enclave_attest_s_enclave(cpu_get_enclave_id(), report, kg, flag);
+  return ret;
+}
+
 unsigned long sbi_sm_get_sealing_key(uintptr_t sealing_key, uintptr_t key_ident,
                        size_t key_ident_size)
 {

@@ -62,6 +62,10 @@ void sm_sign(void* signature, const void* data, size_t len)
   sign(signature, data, len, sm_public_key, sm_private_key);
 }
 
+int sm_verify(const void* signature, const void* data, size_t len) {
+  return verify(signature, data, len, sm_public_key);
+}
+
 int sm_derive_sealing_key(unsigned char *key, const unsigned char *key_ident,
                           size_t key_ident_size,
                           const unsigned char *enclave_hash)

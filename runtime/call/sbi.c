@@ -121,3 +121,13 @@ uintptr_t
 sbi_get_sealing_key(uintptr_t key_struct, uintptr_t key_ident, uintptr_t len) {
   return SBI_CALL_3(SBI_EXT_EXPERIMENTAL_KEYSTONE_ENCLAVE, SBI_SM_GET_SEALING_KEY, key_struct, key_ident, len);
 }
+
+uintptr_t
+sbi_slave_enclave_attested(void* report, uintptr_t nonce, void* kg) {
+  return SBI_CALL_3(SBI_EXT_EXPERIMENTAL_KEYSTONE_ENCLAVE, SBI_SM_S_ENCLAVE_ATTESTED, report, nonce, kg);
+}
+
+uintptr_t
+sbi_m_enclave_attest_s_enclave(void* report, void* kg, void* flag) {
+  return SBI_CALL_3(SBI_EXT_EXPERIMENTAL_KEYSTONE_ENCLAVE, SBI_SM_M_ENCLAVE_ATTEST_S_ENCLAVE, report, kg, flag);
+}

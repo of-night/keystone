@@ -30,6 +30,10 @@ void sign(void* sign, const void* data, size_t len, const unsigned char* public_
   ed25519_sign(sign, data, len, public_key, private_key);
 }
 
+int verify(const void* sign, const void* data, size_t len, const byte* public_key) {
+  return ed25519_verify(sign, data, len, public_key);
+}
+
 int kdf(const unsigned char* salt, size_t salt_len,
         const unsigned char* ikm, size_t ikm_len,
         const unsigned char* info, size_t info_len,

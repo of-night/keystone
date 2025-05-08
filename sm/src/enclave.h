@@ -101,6 +101,7 @@ struct enclave
 
   m_enclave m;
   s_enclave s;
+  uint64_t engine_id;
 };
 
 /* attestation reports */
@@ -130,6 +131,14 @@ struct sealing_key
 {
   uint8_t key[SEALING_KEY_SIZE];
   uint8_t signature[SIGNATURE_SIZE];
+};
+
+struct s_attested_report {
+  unsigned int seq;
+  unsigned long long nonce;
+  unsigned char s_hash[64];
+  unsigned char hmac[64];
+  unsigned char signature[64];
 };
 
 /*** SBI functions & external functions ***/
@@ -170,8 +179,13 @@ unsigned long main_enclave_get_numberblock_set_pmp(enclave_id eid);
 
 unsigned long other_enclave_access_stm_test_set_pmp(enclave_id eid);
 
+unsigned long s_enclave_attested(enclave_id eid, uintptr_t report, uintptr_t nonce, uintptr_t kg);
+unsigned long m_enclave_attest_s_enclave(enclave_id eid, uintptr_t report, uintptr_t kg, uintptr_t flag);
+
 // attestation
 unsigned long validate_and_hash_enclave(struct enclave* enclave);
+unsigned long generate_kg(struct enclave* enclave, void* kg);
+unsigned long generate_s_attested_hash(struct s_attested_report* s_attested_report, void* kg);
 // TODO: These functions are supposed to be internal functions.
 void enclave_init_metadata(void);
 unsigned long copy_enclave_create_args(uintptr_t src, struct keystone_sbi_create_t* dest);

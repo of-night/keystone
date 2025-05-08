@@ -43,6 +43,7 @@ class KeystoneDevice {
   virtual Error test_other_os_access_epm_create(uint64_t minPages);
   virtual uintptr_t initUTM(size_t size);
   virtual uintptr_t initYXSTM(size_t size, uint64_t ms);
+  virtual uintptr_t initYXSTM(size_t size, uint64_t ms, uint64_t _engine_id);
   virtual Error finalize(
       uintptr_t runtimePhysAddr, uintptr_t eappPhysAddr, uintptr_t freePhysAddr,
       uintptr_t freeRequested);
@@ -70,6 +71,7 @@ class MockKeystoneDevice : public KeystoneDevice {
   Error test_other_os_access_epm_create(uint64_t minPages);
   uintptr_t initUTM(size_t size);
   uintptr_t initYXSTM(size_t size, uint64_t ms);
+  uintptr_t initYXSTM(size_t size, uint64_t ms, uint64_t _engine_id);
   Error finalize(
       uintptr_t runtimePhysAddr, uintptr_t eappPhysAddr, uintptr_t freePhysAddr,
       uintptr_t freeRequested);

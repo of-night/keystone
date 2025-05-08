@@ -49,6 +49,7 @@ int YXSTM_init_ioctl(struct file *filep, unsigned long arg)
   struct keystone_ioctl_create_enclave *enclp = (struct keystone_ioctl_create_enclave *) arg;
   long long unsigned YXSTrusted_size = enclp->YXSTM_size;
   long long unsigned ms_YXSTM = enclp->ms;
+  unsigned long long engine_id = enclp->engine_id;
 
   enclave = get_enclave_by_id(enclp->eid);
 
@@ -85,6 +86,7 @@ int YXSTM_init_ioctl(struct file *filep, unsigned long arg)
   // keystone_info("YXSTM driver %s testing, ptr=%lu, size1=%lu, size2=%lu, size3=%lu\n", __func__, global_yxstm.global_yxstm.ptr, YXSTM->size, global_yxstm.global_yxstm.size, YXSTrusted_size);
 
   enclave->ms = ms_YXSTM;
+  enclave->engine_id = engine_id;
   enclave->YXSTM = YXSTM;
 
   enclp->YXSTM_paddr = __pa(YXSTM->ptr);
@@ -151,6 +153,7 @@ int keystone_finalize_enclave(unsigned long arg)
   create_args.free_paddr = enclp->free_paddr;
   create_args.free_requested = enclp->free_requested;
   create_args.ms_YXSTM = enclave->ms;
+  create_args.engine_id = enclave->engine_id;
 
   ret = sbi_sm_create_enclave(&create_args);
 

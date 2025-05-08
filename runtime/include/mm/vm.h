@@ -35,6 +35,8 @@ extern uintptr_t shared_buffer_size;
 extern uintptr_t YXS_trusted_memory;
 extern uintptr_t YXS_trusted_memory_size;
 
+extern unsigned char kg[64];
+
 /* test other enclave access epm */
 extern uintptr_t test_other_enclave_access_epm;
 // // morenzhixuyao8B

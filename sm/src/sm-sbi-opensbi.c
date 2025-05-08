@@ -76,6 +76,12 @@ static int sbi_ecall_keystone_enclave_handler(unsigned long extid, unsigned long
     case SBI_SM_O_ENCLAVE_ACCESS_STM_TEST_SET_PMP:
       retval = sbi_sm_other_enclave_access_stm_test_set_pmp();
       break;
+    case SBI_SM_S_ENCLAVE_ATTESTED:
+      retval = sbi_sm_s_enclave_attested(regs->a0, regs->a1, regs->a2);
+      break;
+    case SBI_SM_M_ENCLAVE_ATTEST_S_ENCLAVE:
+      retval = sbi_sm_m_enclave_attest_s_enclave(regs->a0, regs->a1, regs->a2);
+      break;
     case SBI_SM_GET_SEALING_KEY:
       retval = sbi_sm_get_sealing_key(regs->a0, regs->a1, regs->a2);
       break;

@@ -26,6 +26,16 @@ PhysicalEnclaveMemory::allocYXSTm(size_t size, uint64_t ms) {
 }
 
 uintptr_t
+PhysicalEnclaveMemory::allocYXSTm(size_t size, uint64_t ms, uint64_t _engine_id) {
+  uintptr_t ret   = pDevice->initYXSTM(size, ms, _engine_id);
+  ms_YXSTM        = ms;
+  engine_id       = _engine_id;
+  YXSTrustedSize  = size;
+  YXSTmPhysAddr   = ret;
+  return ret;
+}
+
+uintptr_t
 PhysicalEnclaveMemory::allocUtm(size_t size) {
   uintptr_t ret = pDevice->initUTM(size);
   untrustedSize = size;

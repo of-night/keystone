@@ -52,6 +52,8 @@ struct keystone_ioctl_create_enclave {
 
   // ms
   uintptr_t ms;
+  // engine id
+  uintptr_t engine_id;
 
   // host -> driver
   uintptr_t min_pages; // create

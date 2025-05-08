@@ -20,6 +20,14 @@ ms_group ms_group_list[MAX_MS_GROUP]; // 从属 enclave 组列表
 
 static volatile int YXSTM_sm_init = 0;
 static volatile int YXSTM_sm_fleible = 0;
+static volatile int sm_engine_id = 0;
+static volatile int kg_ready = 0;
+
+typedef struct {
+  volatile int YXSTM_sm_init;
+  volatile int YXSTM_sm_fleible;
+  volatile int sm_engine_id;
+}sm_ms;
 
 // Enclave IDs are unsigned ints, so we do not need to check if eid is
 // greater than or equal to 0
@@ -190,6 +198,8 @@ void enclave_init_metadata(void){
   /* Assumes eids are incrementing values, which they are for now */
   for(eid=0; eid < ENCL_MAX; eid++){
     enclaves[eid].state = INVALID;
+
+    enclaves[eid].engine_id = 0;
 
     // Clear out regions
     for(i=0; i < ENCLAVE_REGIONS_MAX; i++){
@@ -410,6 +420,9 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   uintptr_t YXSTbase = create_args.YXSTM_region.paddr;
   size_t YXSTsize = create_args.YXSTM_region.size;
   uint64_t ms_YXSTM = create_args.ms_YXSTM;
+  uint64_t engine_id = create_args.engine_id;
+  int is_create = 0;
+  byte kg[MDSIZE];
 
   enclave_id eid;
   unsigned long ret;
@@ -432,10 +445,18 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   params.YXSTrusted_base = YXSTbase;
   params.YXSTrusted_size = YXSTsize;
 
-  YXSTM_sm_fleible = ms_YXSTM;
-  if (YXSTM_sm_fleible == 0) {
+  spin_lock(&encl_lock);
+  if (ms_YXSTM != 0 && YXSTM_sm_fleible == 0 && sm_engine_id == 0) {
+    YXSTM_sm_fleible = ms_YXSTM;
+    sm_engine_id = engine_id;
+    YXSTM_sm_init = 0;
+  }
+  spin_unlock(&encl_lock);
+
+  if (ms_YXSTM == 0) {
     params.YXSTrusted_base = 0;
     params.YXSTrusted_size = 0;
+    engine_id = 0;
   }
   params.free_requested = create_args.free_requested;
 
@@ -456,29 +477,31 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   if(pmp_region_init_atomic(utbase, utsize, PMP_PRI_BOTTOM, &shared_region, 0))
     goto free_region;
 
-  spin_lock(&encl_lock);
-  if (YXSTM_sm_fleible) {
-    if (YXSTM_sm_init == 0) {
-      // sbi_printf("YXSTM sm testing 1 %s\t,YXSTbase:%lu ,YXSTsize:%lu\n", __func__, YXSTbase, YXSTsize);
+  if (ms_YXSTM) {
+    spin_lock(&encl_lock);
+    is_create = (YXSTM_sm_init == 0);
+    if (is_create && sm_engine_id != 0) {
       if(pmp_region_init_atomic(YXSTbase, YXSTsize, PMP_PRI_ANY, &YXSTM_region, 0)) {
         spin_unlock(&encl_lock);
         goto free_shared_region;
       }
       YXSTM_sm_init = YXSTM_region;
-      spin_unlock(&encl_lock);
-      // set pmp registers for private region YXSTM
+    }
+
+    if (engine_id == sm_engine_id && sm_engine_id != 0) {
+      YXSTM_region = YXSTM_sm_init;
+    }
+
+    spin_unlock(&encl_lock);
+    if (is_create && sm_engine_id != 0) {
       if(pmp_set_global(YXSTM_region, PMP_NO_PERM)) {
         YXSTM_sm_init = YXSTM_region = 0;
         goto free_YXSTM_region;
       }
-      spin_lock(&encl_lock);
-    } else {
-      // 将YXSTM的pmp信息共享给其他enclave
-      YXSTM_region = YXSTM_sm_init;
+      // 只清除一次，在pmp ipi同步之后，立马对stm memset 0
+      clean_enclave_YXST_memory(YXSTbase, YXSTsize);
     }
-    // sbi_printf("YXSTM sm testing 2 %s\t,YXSTbase:%lu ,YXSTsize:%lu, YXSTM_region:%d\n", __func__, YXSTbase, YXSTsize, YXSTM_region);
   }
-  spin_unlock(&encl_lock);
 
   // set pmp registers for private region (not shared)
   if(pmp_set_global(region, PMP_NO_PERM))
@@ -487,12 +510,9 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   // cleanup some memory regions for sanity See issue #38
   clean_enclave_memory(utbase, utsize);
 
-  if (YXSTM_sm_fleible) {
-    clean_enclave_YXST_memory(YXSTbase, YXSTsize);
-  }
-
   // initialize enclave metadata
   enclaves[eid].eid = eid;
+  enclaves[eid].engine_id = engine_id;
 
   // Initialize the master enclave structure for the newly created enclave
   initialize_m_enclave(&enclaves[eid].m);
@@ -503,7 +523,7 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   enclaves[eid].regions[0].type = REGION_EPM;
   enclaves[eid].regions[1].pmp_rid = shared_region;
   enclaves[eid].regions[1].type = REGION_UTM;
-  if (YXSTM_sm_fleible) {
+  if (ms_YXSTM) {
     enclaves[eid].regions[2].pmp_rid = YXSTM_region;
     enclaves[eid].regions[2].type = REGION_EPM;
   }
@@ -528,6 +548,19 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   spin_lock(&encl_lock); // FIXME This should error for second enter.
  
   ret = validate_and_hash_enclave(&enclaves[eid]);
+
+  if (ms_YXSTM) {
+    if (is_create) {
+      generate_kg(&enclaves[eid], kg);
+      sbi_memcpy((void*)(YXSTbase + YXSTsize - sizeof(kg)), (void*)kg, sizeof(kg));
+      kg_ready = 1;
+    } else {
+      while (kg_ready){
+        mb();
+      }
+    }
+  }
+  
   /* The enclave is fresh if it has been validated and hashed but not run yet. */
   if (ret)
     goto unlock;
@@ -622,6 +655,7 @@ unsigned long destroy_enclave(enclave_id eid)
       unsigned int is_last = (YXSTM_sm_fleible == 0);
       if (is_last) {
         YXSTM_sm_init = 0;
+        sm_engine_id = 0;
       }
 
       spin_unlock(&encl_lock);
@@ -966,12 +1000,12 @@ static int check_m_get_data(m_enclave* m, uint64_t numbers, uint64_t state, uint
 static unsigned long copy_sm_to_enclave(struct enclave* enclave,
   uintptr_t dest, void* source, size_t size) {
 
-int illegal = copy_from_sm(dest, source, size);
+  int illegal = copy_from_sm(dest, source, size);
 
-if(illegal)
-return SBI_ERR_SM_ENCLAVE_ILLEGAL_ARGUMENT;
-else
-return SBI_ERR_SM_ENCLAVE_SUCCESS;
+  if(illegal)
+    return SBI_ERR_SM_ENCLAVE_ILLEGAL_ARGUMENT;
+  else
+    return SBI_ERR_SM_ENCLAVE_SUCCESS;
 }
 
 static unsigned long copy_slave_enclave_data(struct enclave* enclave,
@@ -1294,4 +1328,80 @@ unsigned long other_enclave_access_stm_test_set_pmp(enclave_id eid){
     }
   }
   return 0;
+}
+
+unsigned long s_enclave_attested(enclave_id eid, uintptr_t report, uintptr_t nonce, uintptr_t kg) {
+
+  struct s_attested_report s_report;
+  unsigned char s_kg[64];
+  int ret;
+
+  ret = copy_enclave_data(&enclaves[eid], s_kg, kg, 64);
+  if (ret) {
+    return ret;
+  }
+
+  s_report.seq = eid;
+  s_report.nonce = nonce;
+  sbi_memcpy(s_report.s_hash, enclaves[eid].hash, 64);
+
+  generate_s_attested_hash(&s_report, s_kg);
+
+  sm_sign(s_report.signature, &s_report, sizeof(struct s_attested_report) - 64);
+  
+  ret = copy_from_sm(report, &s_report, sizeof(struct s_attested_report));
+
+  if (ret) {
+    return ret;
+  }
+
+  ret = SBI_ERR_SM_ENCLAVE_SUCCESS;
+
+  return ret;
+}
+
+unsigned long m_enclave_attest_s_enclave(enclave_id eid, uintptr_t report, uintptr_t kg, uintptr_t flag) {
+  struct s_attested_report s_report;
+  unsigned char m_kg[64];
+  unsigned char s_hmac[64];
+  int ret;
+  uint64_t _flag = 0;
+
+  ret = copy_enclave_data(&enclaves[eid], &s_report, report, sizeof(struct s_attested_report));
+  if (ret) {
+    return ret;
+  }
+
+  if (sm_verify(s_report.signature, &s_report, sizeof(struct s_attested_report) - 64)) {
+    _flag = 0;
+    ret = copy_from_sm(flag, &_flag, sizeof(_flag));
+    if (ret) {
+      return ret;
+    }
+  }
+
+  ret = copy_enclave_data(&enclaves[eid], m_kg, kg, 64);
+  if (ret) {
+    return ret;
+  }
+
+  // 提前备份s的hmac
+  sbi_memcpy(s_hmac, s_report.hmac, 64);
+
+  // 使用m_kg重新计算hmac
+  generate_s_attested_hash(&s_report, m_kg);
+
+  ret = sbi_memcmp(s_report.hmac, s_hmac, 64);
+  if (ret) {
+    return ret;
+  }
+
+  _flag = 1;
+  ret = copy_from_sm(flag, &_flag, sizeof(_flag));
+  if (ret) {
+    return ret;
+  }
+
+  return 0;
+
 }

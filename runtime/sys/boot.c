@@ -20,6 +20,8 @@ extern uintptr_t shared_buffer_size;
 extern uintptr_t YXS_trusted_memory;
 extern uintptr_t YXS_trusted_memory_size;
 
+extern unsigned char kg[64];
+
 /* initial memory layout */
 uintptr_t utm_base;
 size_t utm_size;
@@ -167,6 +169,10 @@ yx_eyrie_boot(uintptr_t dummy, // $a0 contains the return value from the SBI
   runtime_va_start = (uintptr_t) &rt_base;
   kernel_offset = runtime_va_start - runtime_paddr;
 
+  if (YXSTM_size != 0) {
+    memcpy((void*)kg, (void*)(YXS_trusted_memory+YXS_trusted_memory_size - sizeof(kg)), sizeof(kg));
+  }
+  
   /* test other enclave access epm */
   test_other_enclave_access_epm = dram_base;
   // // morenzhixuyao8B

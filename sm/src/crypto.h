@@ -30,6 +30,7 @@ void hash_extend_page(hash_ctx* hash_ctx, const void* ptr);
 void hash_finalize(void* md, hash_ctx* hash_ctx);
 
 void sign(void* sign, const void* data, size_t len, const byte* public_key, const byte* private_key);
+int verify(const void* sign, const void* data, size_t len, const byte* public_key);
 int kdf(const unsigned char* salt, size_t salt_len,
         const unsigned char* ikm, size_t ikm_len,
         const unsigned char* info, size_t info_len,

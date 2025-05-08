@@ -19,5 +19,6 @@ extern unsigned char rt_copy_buffer_2[RISCV_PAGE_SIZE];
 
 extern unsigned char rt_copy_identity[64+4];
 extern unsigned char rt_copy_slave_data[IPFS_BLOCK_SIZE + 8 + 8 + 1];
+extern unsigned char attested_report[RISCV_PAGE_SIZE];
 
 #endif /* _RT_UTIL_H_ */

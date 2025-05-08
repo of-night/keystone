@@ -57,6 +57,12 @@ unsigned long
 sbi_sm_other_enclave_access_stm_test_set_pmp();
 
 unsigned long
+sbi_sm_s_enclave_attested(uintptr_t report, uintptr_t nonce, uintptr_t kg);
+
+unsigned long
+sbi_sm_m_enclave_attest_s_enclave(uintptr_t report, uintptr_t kg, uintptr_t flag);
+
+unsigned long
 sbi_sm_get_sealing_key(uintptr_t seal_key, uintptr_t key_ident, size_t key_ident_size);
 
 unsigned long

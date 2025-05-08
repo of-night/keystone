@@ -204,7 +204,10 @@ Enclave::init(
   }
   if (params.getYXms() != 0) {
     // Additional logic can be added here if needed
-    if (!pMemory->allocYXSTm(params.getYXShareTrustedMemSize(), params.getYXms())) {
+    if (params.getEngineID() == 0) {
+      std::cout << "dont set Engine id" << std::endl;
+    }
+    if (!pMemory->allocYXSTm(params.getYXShareTrustedMemSize(), params.getYXms(), params.getEngineID())) {
       ERROR("failed to init YX share trusted memory - ioctl() failed");
       destroy();
       return Error::DeviceError;

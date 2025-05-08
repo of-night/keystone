@@ -428,6 +428,128 @@ YXSTM_error:
   return ret;
 }
 
+uintptr_t m_attestt_s_enclave(void *_attested_report) {
+  // struct s_attested_report {
+  //   unsigned int seq;
+  //   unsigned long long nonce;
+  //   unsigned char s_hash[64];
+  //   unsigned char hmac[64];
+  //   unsigned char signature[64];
+  // }
+
+  // struct s_attested_report* report = (struct s_attested_report*)_attested_report;
+  uint64_t flag = 0;
+  if (sbi_m_enclave_attest_s_enclave(_attested_report, kg, &flag)){
+    return 1;
+  }
+
+  if (flag == 0) {
+    printf("m_attest_s %s, flag err ,not match\n", __func__);
+  }
+  // return memcmp(kg, report->enclave.data, report->enclave.data_len);
+  return 0;
+}
+
+uintptr_t handle_m_attestt_s_enclave() {
+  // 将kg作为 report中的nonce
+  // data maxlen = 1024, sizeof(kg)=64
+
+  // uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+
+  int block_region_number       = ((YXSTM_size + 0x3ffff) >> 18);
+  int block_flag_region_number  = 1;
+  int block_data_region_number  = block_region_number - block_flag_region_number;
+
+  if (block_data_region_number <= 0) {
+    return 1;
+  }
+
+  uint64_t *block_flag_region_ptr         = (uint64_t *)YXS_trusted_memory;
+  // uint64_t block_flag_region_MAX_length   = 256*1024;
+  // uint64_t *block_flag_region_MAX_ptr     = (uint64_t *)(YXS_trusted_memory + block_flag_region_MAX_length);
+
+  uint64_t *block_flag_region_number_ptr      = block_flag_region_ptr;
+  uint64_t block_flag_region_number_number    = 1;
+  // uint64_t *block_flag_region_number_data_ptr = block_flag_region_ptr + block_flag_region_number_number * 8;
+
+  unsigned char *block_flag_region_data_ptr     = (unsigned char *)block_flag_region_ptr + block_flag_region_number_number * 8 * 2;
+  // unsigned char *block_flag_region_data_MAX_ptr = (unsigned char *)block_flag_region_data_ptr + block_flag_region_number_number * 2048;
+
+  while(1) {
+    int i = 0;
+    for (i = 0; i < block_flag_region_number_number; ++i) {
+      if (*(block_flag_region_number_ptr + i) == 1) {
+        break;
+      }
+    }
+
+    if (i < block_flag_region_number_number) {
+      memcpy((void*)attested_report, (block_flag_region_data_ptr + i * 2048), 2048);
+      *(block_flag_region_number_ptr + i) = 0;
+      // attest s report
+      if (m_attestt_s_enclave(attested_report)) {
+        return 1;
+      }
+
+      break;
+    }
+  }
+
+  return 0;
+
+
+}
+
+uintptr_t handle_s_enclave_attestted() {
+  // 将kg作为 report中的nonce
+  // data maxlen = 1024, sizeof(kg)=64
+  if (sbi_slave_enclave_attested(attested_report, sbi_random(), kg)) {
+    return 1;
+  }
+
+  // uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+
+  int block_region_number       = ((YXSTM_size + 0x3ffff) >> 18);
+  int block_flag_region_number  = 1;
+  int block_data_region_number  = block_region_number - block_flag_region_number;
+
+  if (block_data_region_number <= 0) {
+    return 1;
+  }
+
+  uint64_t *block_flag_region_ptr         = (uint64_t *)YXS_trusted_memory;
+  // uint64_t block_flag_region_MAX_length   = 256*1024;
+  // uint64_t *block_flag_region_MAX_ptr         = (uint64_t *)(YXS_trusted_memory + block_flag_region_MAX_length);
+
+  uint64_t *block_flag_region_number_ptr      = block_flag_region_ptr;
+  uint64_t block_flag_region_number_number    = 1;
+  // uint64_t *block_flag_region_number_data_ptr = block_flag_region_ptr + block_flag_region_number_number * 8;
+
+  unsigned char *block_flag_region_data_ptr     = (unsigned char *)block_flag_region_ptr + block_flag_region_number_number * 8 * 2;
+  // unsigned char *block_flag_region_data_MAX_ptr = (unsigned char *)block_flag_region_data_ptr + block_flag_region_number_number * 2048;
+
+  while(1) {
+    int i = 0;
+    for (i = 0; i < block_flag_region_number_number; ++i) {
+      if (*(block_flag_region_number_ptr + i) == 0) {
+        break;
+      }
+    }
+
+    if (i < block_flag_region_number_number) {
+      memcpy((block_flag_region_data_ptr + i * 2048), (void*)attested_report, 2048);
+      *(block_flag_region_number_ptr + i) = 1;
+      break;
+    }
+  }
+
+  return 0;
+
+
+}
+
 void init_edge_internals(){
   edge_call_init_internals(shared_buffer, shared_buffer_size);
 }
@@ -492,6 +614,12 @@ void handle_syscall(struct encl_ctx* ctx)
     break;
   case(RUNTIME_SYSCALL_TEST_OTHER_ENCLAVE_ACCESS_EPM_S):;
     ret = handle_TEST_OTHER_ENCLAVE_ACCESS_EPM_S((void*)arg0);
+    break;
+  case(RUNTIME_SYSCALL_M_ATTEST_S_ENCLAVE):;
+    ret = handle_m_attestt_s_enclave();
+    break;
+  case(RUNTIME_SYSCALL_S_ENCLAVE_ATTESTTED):;
+    ret = handle_s_enclave_attestted();
     break;
   case(RUNTIME_SYSCALL_ATTEST_ENCLAVE):;
     copy_from_user((void*)rt_copy_buffer_2, (void*)arg1, arg2);

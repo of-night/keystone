@@ -40,7 +40,7 @@ keystone-sm-sources += attest.c cpu.c enclave.c pmp.c sm.c sm-sbi.c sm-sbi-opens
 # Crypto
 ifneq ($(KEYSTONE_SM_NO_CRYPTO),y)
 keystone-sm-sources += crypto.c sha3/sha3.c ed25519/fe.c ed25519/ge.c ed25519/keypair.c \
-                        ed25519/sc.c ed25519/sign.c hkdf_sha3_512/hkdf_sha3_512.c \
+                        ed25519/sc.c ed25519/sign.c ed25519/verify.c hkdf_sha3_512/hkdf_sha3_512.c \
                         hmac_sha3/hmac_sha3.c
 endif
 

@@ -73,6 +73,7 @@ struct enclave
   struct epm* epm;
   struct YXSTM* YXSTM;
   unsigned long long ms;
+  unsigned long long engine_id;
   bool is_init;
 };
 

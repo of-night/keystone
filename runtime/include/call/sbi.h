@@ -46,5 +46,9 @@ uintptr_t
 sbi_main_enclave_get_numberblock_set_pmp();
 uintptr_t
 sbi_other_enclave_access_stm_test_set_pmp();
+uintptr_t
+sbi_slave_enclave_attested(void* report, uintptr_t nonce, void* kg);
+uintptr_t
+sbi_m_enclave_attest_s_enclave(void* report, void* kg, void* flag);
 
 #endif
