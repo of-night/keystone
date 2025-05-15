@@ -88,6 +88,18 @@ int
 s_enclave_attestted();
 
 int
+wait_main_dispatch(void* dest, void* block_id, void* block_size, size_t slave_id, size_t flexible);
+
+int
+main_dispatch_send(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible);
+
+int
+slave_set_block(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible);
+
+int
+get_slave_block(void* dest, size_t block_id, size_t block_size, size_t slave_id, size_t flexible);
+
+int
 get_sealing_key(
     struct sealing_key* sealing_key_struct, size_t sealing_key_struct_size,
     void* key_ident, size_t key_ident_size);

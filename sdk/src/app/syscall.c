@@ -89,6 +89,26 @@ s_enclave_attestted(){
   return SYSCALL_0(RUNTIME_SYSCALL_S_ENCLAVE_ATTESTTED);
 }
 
+int
+wait_main_dispatch(void* dest, void* block_id, void* block_size, size_t slave_id, size_t flexible) {
+  return SYSCALL_5(RUNTIME_SYSCALL_WAIT_MAIN_DISPATCH, dest, block_id, block_size, slave_id, flexible);
+}
+
+int
+main_dispatch_send(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+  return SYSCALL_5(RUNTIME_SYSCALL_MAIN_DISPATCH_SEND, src, block_id, block_size, slave_id, flexible);
+}
+
+int
+slave_set_block(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+  return SYSCALL_5(RUNTIME_SYSCALL_SLAVE_SET_BLOCK, src, block_id, block_size, slave_id, flexible);
+}
+
+int
+get_slave_block(void* dest, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+  return SYSCALL_5(RUNTIME_SYSCALL_GET_SLAVE_BLOCK, dest, block_id, block_size, slave_id, flexible);
+}
+
 /* returns sealing key */
 int
 get_sealing_key(

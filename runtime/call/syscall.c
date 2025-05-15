@@ -550,6 +550,173 @@ uintptr_t handle_s_enclave_attestted() {
 
 }
 
+// slave
+// decrypt, size = 1, !0 . slave recv data
+uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size, size_t slave_id, size_t flexible) {
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+  int ret;
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
+    return 1;
+  }
+
+  size_t slave_stm_region = number / (flexible - 1);
+
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+
+  size_t i = 0;
+  while (1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      // if decrypt, size = 1, !0 : then recv data
+      if (this_slave_flag_addr[i*3] == 1 && this_slave_flag_addr[(i*3) + 1] != 0) {
+        break;
+      }
+    }
+    if (i < slave_stm_region) {
+      break;
+    }
+  }
+
+  ret = copy_to_user(dest, (void*)(slave_stm_data_ptr_start + (i << 18)), this_slave_flag_addr[(i*3)+1]);
+  if (ret) {
+    return ret;
+  }
+
+  ret = copy_to_user(block_size, (void*)(&this_slave_flag_addr[(i*3) + 1]), sizeof(uint64_t));
+  if (ret) {
+    return ret;
+  }
+
+  ret = copy_to_user(block_id, (void*)(&this_slave_flag_addr[(i*3) + 2]), sizeof(uint64_t));
+  if (ret) {
+    return ret;
+  }
+
+  return 0;
+}
+
+// main
+// decrypt, size = 0, 0 . main send data ==> decrypt, size, id = 1, size, id
+uintptr_t handle_main_dispatch_send(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
+    return 1;
+  }
+
+  size_t slave_stm_region = number / (flexible - 1);
+
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+
+  size_t i = 0;
+  while (1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      // if decrypt, size = 0, 0: then send data
+      if (this_slave_flag_addr[(i*3)] == 0 && this_slave_flag_addr[(i*3) + 1] == 0) {
+        break;
+      }
+    }
+    if (i < slave_stm_region) {
+      break;
+    }
+  }
+
+  int ret = copy_from_user((void*)(slave_stm_data_ptr_start + (i << 18)), src, block_size);
+  if (ret) {
+    return ret;
+  }
+
+  this_slave_flag_addr[(i*3)] = 1;
+  this_slave_flag_addr[(i*3) + 1] = block_size;
+  this_slave_flag_addr[(i*3) + 2] = block_id;
+
+  return 0;
+}
+
+// slave
+// decrypt, size, id = 1, size, id . slave set data ==> decrypt = 2
+uintptr_t handle_slave_set_block(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
+    return 1;
+  }
+
+  size_t slave_stm_region = number / (flexible - 1);
+
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+
+  size_t i = 0;
+  while (1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      if (this_slave_flag_addr[(i*3)] == 1 && this_slave_flag_addr[(i*3) + 1] == block_size && this_slave_flag_addr[(i*3) + 2] == block_id) {
+        break;
+      }
+    }
+    if (i < slave_stm_region) {
+      break;
+    }
+  }
+
+  int ret = copy_from_user((void*)(slave_stm_data_ptr_start + (i << 18)), src, block_size);
+  if (ret) {
+    return ret;
+  }
+
+  this_slave_flag_addr[(i*3)] = 2;
+
+  return 0;
+}
+
+// main
+// decrypt, size, id = 2, size, id . main get data ==> decrypt, size, id = 0, 0, 0
+uintptr_t handle_get_slave_block(void* dest, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
+    return 1;
+  }
+
+  size_t slave_stm_region = number / (flexible - 1);
+
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+
+  size_t i = 0;
+  while (1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      if (this_slave_flag_addr[(i*3)] == 2 && this_slave_flag_addr[(i*3) + 1] == block_size && this_slave_flag_addr[(i*3) + 2] == block_id) {
+        break;
+      }
+    }
+    if (i < slave_stm_region) {
+      break;
+    }
+  }
+
+  int ret = copy_to_user(dest, (void*)(slave_stm_data_ptr_start + (i << 18)), block_size);
+  if (ret) {
+    return ret;
+  }
+
+  this_slave_flag_addr[(i*3)] = 0;
+  this_slave_flag_addr[(i*3)+1] = 0;
+  this_slave_flag_addr[(i*3)+2] = 0;
+
+  return 0;
+}
+
 void init_edge_internals(){
   edge_call_init_internals(shared_buffer, shared_buffer_size);
 }
@@ -620,6 +787,18 @@ void handle_syscall(struct encl_ctx* ctx)
     break;
   case(RUNTIME_SYSCALL_S_ENCLAVE_ATTESTTED):;
     ret = handle_s_enclave_attestted();
+    break;
+  case(RUNTIME_SYSCALL_WAIT_MAIN_DISPATCH):;
+    ret = handle_wait_main_dispatch((void*)arg0, (void*)arg1, (void*)arg2, arg3, arg4);
+    break;
+  case(RUNTIME_SYSCALL_MAIN_DISPATCH_SEND):;
+    ret = handle_main_dispatch_send((void*)arg0, arg1, arg2, arg3, arg4);
+    break;
+  case(RUNTIME_SYSCALL_SLAVE_SET_BLOCK):;
+    ret = handle_slave_set_block((void*)arg0, arg1, arg2, arg3, arg4);
+    break;
+  case(RUNTIME_SYSCALL_GET_SLAVE_BLOCK):;
+    ret = handle_get_slave_block((void*)arg0, arg1, arg2, arg3, arg4);
     break;
   case(RUNTIME_SYSCALL_ATTEST_ENCLAVE):;
     copy_from_user((void*)rt_copy_buffer_2, (void*)arg1, arg2);
