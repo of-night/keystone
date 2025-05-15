@@ -80,13 +80,13 @@ other_enclave_access_epm_test_s(void* flag) {
 }
 
 int
-m_attestt_s_enclave(){
-  return SYSCALL_0(RUNTIME_SYSCALL_M_ATTEST_S_ENCLAVE);
+m_attestt_s_enclave(size_t slave_id, size_t flexible){
+  return SYSCALL_2(RUNTIME_SYSCALL_M_ATTEST_S_ENCLAVE, slave_id, flexible);
 }
 
 int
-s_enclave_attestted(){
-  return SYSCALL_0(RUNTIME_SYSCALL_S_ENCLAVE_ATTESTTED);
+s_enclave_attestted(size_t slave_id, size_t flexible){
+  return SYSCALL_2(RUNTIME_SYSCALL_S_ENCLAVE_ATTESTTED, slave_id, flexible);
 }
 
 int

@@ -82,10 +82,10 @@ int
 other_enclave_access_epm_test_s(void* flag);
 
 int
-m_attestt_s_enclave();
+m_attestt_s_enclave(size_t slave_id, size_t flexible);
 
 int
-s_enclave_attestted();
+s_enclave_attestted(size_t slave_id, size_t flexible);
 
 int
 wait_main_dispatch(void* dest, void* block_id, void* block_size, size_t slave_id, size_t flexible);

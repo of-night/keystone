@@ -450,104 +450,86 @@ uintptr_t m_attestt_s_enclave(void *_attested_report) {
   return 0;
 }
 
-uintptr_t handle_m_attestt_s_enclave() {
+uintptr_t handle_m_attestt_s_enclave(size_t slave_id, size_t flexible) {
   // 将kg作为 report中的nonce
   // data maxlen = 1024, sizeof(kg)=64
 
-  // uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
   uint64_t YXSTM_size       = YXS_trusted_memory_size;
 
-  int block_region_number       = ((YXSTM_size + 0x3ffff) >> 18);
-  int block_flag_region_number  = 1;
-  int block_data_region_number  = block_region_number - block_flag_region_number;
-
-  if (block_data_region_number <= 0) {
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
     return 1;
   }
 
-  uint64_t *block_flag_region_ptr         = (uint64_t *)YXS_trusted_memory;
-  // uint64_t block_flag_region_MAX_length   = 256*1024;
-  // uint64_t *block_flag_region_MAX_ptr     = (uint64_t *)(YXS_trusted_memory + block_flag_region_MAX_length);
+  size_t slave_stm_region = number / (flexible - 1);
 
-  uint64_t *block_flag_region_number_ptr      = block_flag_region_ptr;
-  uint64_t block_flag_region_number_number    = 1;
-  // uint64_t *block_flag_region_number_data_ptr = block_flag_region_ptr + block_flag_region_number_number * 8;
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 11);
 
-  unsigned char *block_flag_region_data_ptr     = (unsigned char *)block_flag_region_ptr + block_flag_region_number_number * 8 * 2;
-  // unsigned char *block_flag_region_data_MAX_ptr = (unsigned char *)block_flag_region_data_ptr + block_flag_region_number_number * 2048;
-
+  size_t i = 0;
   while(1) {
-    int i = 0;
-    for (i = 0; i < block_flag_region_number_number; ++i) {
-      if (*(block_flag_region_number_ptr + i) == 1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      if (this_slave_flag_addr[(i*3)] == 1 && this_slave_flag_addr[(i*3) + 1] == 2048) {
         break;
       }
     }
 
-    if (i < block_flag_region_number_number) {
-      memcpy((void*)attested_report, (block_flag_region_data_ptr + i * 2048), 2048);
-      *(block_flag_region_number_ptr + i) = 0;
-      // attest s report
-      if (m_attestt_s_enclave(attested_report)) {
-        return 1;
-      }
-
+    if (i < slave_stm_region) {
       break;
     }
   }
 
+  memcpy((void*)attested_report, (slave_stm_data_ptr_start + (i << 11)), 2048);
+  this_slave_flag_addr[(i*3)] = 0;
+  this_slave_flag_addr[(i*3) + 1] = 0;
+  // attest s report
+  if (m_attestt_s_enclave(attested_report)) {
+    printf("attest not match %s, slave_id:%d\n", __func__, slave_id);
+    return 1;
+  }
+
   return 0;
-
-
 }
 
-uintptr_t handle_s_enclave_attestted() {
+uintptr_t handle_s_enclave_attestted(size_t slave_id, size_t flexible) {
   // 将kg作为 report中的nonce
   // data maxlen = 1024, sizeof(kg)=64
   if (sbi_slave_enclave_attested(attested_report, sbi_random(), kg)) {
     return 1;
   }
 
-  // uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
   uint64_t YXSTM_size       = YXS_trusted_memory_size;
 
-  int block_region_number       = ((YXSTM_size + 0x3ffff) >> 18);
-  int block_flag_region_number  = 1;
-  int block_data_region_number  = block_region_number - block_flag_region_number;
-
-  if (block_data_region_number <= 0) {
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
     return 1;
   }
 
-  uint64_t *block_flag_region_ptr         = (uint64_t *)YXS_trusted_memory;
-  // uint64_t block_flag_region_MAX_length   = 256*1024;
-  // uint64_t *block_flag_region_MAX_ptr         = (uint64_t *)(YXS_trusted_memory + block_flag_region_MAX_length);
+  size_t slave_stm_region = number / (flexible - 1);
 
-  uint64_t *block_flag_region_number_ptr      = block_flag_region_ptr;
-  uint64_t block_flag_region_number_number    = 1;
-  // uint64_t *block_flag_region_number_data_ptr = block_flag_region_ptr + block_flag_region_number_number * 8;
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 11);
 
-  unsigned char *block_flag_region_data_ptr     = (unsigned char *)block_flag_region_ptr + block_flag_region_number_number * 8 * 2;
-  // unsigned char *block_flag_region_data_MAX_ptr = (unsigned char *)block_flag_region_data_ptr + block_flag_region_number_number * 2048;
-
-  while(1) {
-    int i = 0;
-    for (i = 0; i < block_flag_region_number_number; ++i) {
-      if (*(block_flag_region_number_ptr + i) == 0) {
+  size_t i = 0;
+  while (1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      // if decrypt, size = 0, 0: then send data
+      if (this_slave_flag_addr[(i*3)] == 0 && this_slave_flag_addr[(i*3) + 1] == 0) {
         break;
       }
     }
-
-    if (i < block_flag_region_number_number) {
-      memcpy((block_flag_region_data_ptr + i * 2048), (void*)attested_report, 2048);
-      *(block_flag_region_number_ptr + i) = 1;
+    if (i < slave_stm_region) {
       break;
     }
   }
+  
+  memcpy((slave_stm_data_ptr_start + (i << 11)), (void*)attested_report, 2048);
+  this_slave_flag_addr[(i*3)] = 1;
+  this_slave_flag_addr[(i*3) + 1] = 2048;
 
   return 0;
-
-
 }
 
 // slave
@@ -565,7 +547,7 @@ uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size
   size_t slave_stm_region = number / (flexible - 1);
 
   uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
-  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 18);
 
   size_t i = 0;
   while (1) {
@@ -612,7 +594,7 @@ uintptr_t handle_main_dispatch_send(void* src, size_t block_id, size_t block_siz
   size_t slave_stm_region = number / (flexible - 1);
 
   uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
-  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 18);
 
   size_t i = 0;
   while (1) {
@@ -653,7 +635,7 @@ uintptr_t handle_slave_set_block(void* src, size_t block_id, size_t block_size, 
   size_t slave_stm_region = number / (flexible - 1);
 
   uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
-  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 18);
 
   size_t i = 0;
   while (1) {
@@ -691,7 +673,7 @@ uintptr_t handle_get_slave_block(void* dest, size_t block_id, size_t block_size,
   size_t slave_stm_region = number / (flexible - 1);
 
   uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
-  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 18);
 
   size_t i = 0;
   while (1) {
@@ -783,10 +765,10 @@ void handle_syscall(struct encl_ctx* ctx)
     ret = handle_TEST_OTHER_ENCLAVE_ACCESS_EPM_S((void*)arg0);
     break;
   case(RUNTIME_SYSCALL_M_ATTEST_S_ENCLAVE):;
-    ret = handle_m_attestt_s_enclave();
+    ret = handle_m_attestt_s_enclave(arg0, arg1);
     break;
   case(RUNTIME_SYSCALL_S_ENCLAVE_ATTESTTED):;
-    ret = handle_s_enclave_attestted();
+    ret = handle_s_enclave_attestted(arg0, arg1);
     break;
   case(RUNTIME_SYSCALL_WAIT_MAIN_DISPATCH):;
     ret = handle_wait_main_dispatch((void*)arg0, (void*)arg1, (void*)arg2, arg3, arg4);
