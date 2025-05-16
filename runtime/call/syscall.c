@@ -533,8 +533,9 @@ uintptr_t handle_s_enclave_attestted(size_t slave_id, size_t flexible) {
 }
 
 // slave
-// decrypt, size = 1, !0 . slave recv data
-uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size, size_t slave_id, size_t flexible) {
+// decrypt, size = 1, !0 . slave recv data ==> decrypt = 2
+uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size, uint64_t slave_id, uint64_t flexible) {
+  // printf("[slave runtime] %s start\n", __func__);
   uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
   uint64_t YXSTM_size       = YXS_trusted_memory_size;
   int ret;
@@ -552,8 +553,13 @@ uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size
   size_t i = 0;
   while (1) {
     for (i = 0; i < slave_stm_region; i++) {
+      // // if decrypt, size = 1, !0 : then recv data
+      // if (this_slave_flag_addr[i*3] == 1 && this_slave_flag_addr[(i*3) + 1] != 0) {
+      //   break;
+      // }
       // if decrypt, size = 1, !0 : then recv data
-      if (this_slave_flag_addr[i*3] == 1 && this_slave_flag_addr[(i*3) + 1] != 0) {
+      // done care size
+      if (this_slave_flag_addr[i*3] == 1) {
         break;
       }
     }
@@ -577,12 +583,17 @@ uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size
     return ret;
   }
 
+  this_slave_flag_addr[(i*3)] = 2;
+
+  // printf("[slave runtime] %s, block_id:%d, block_size:%d\n", __func__, this_slave_flag_addr[(i*3) + 2], this_slave_flag_addr[(i*3) + 1]);
+
   return 0;
 }
 
 // main
 // decrypt, size = 0, 0 . main send data ==> decrypt, size, id = 1, size, id
-uintptr_t handle_main_dispatch_send(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+uintptr_t handle_main_dispatch_send(void* src, uint64_t block_id, uint64_t block_size, uint64_t slave_id, uint64_t flexible) {
+  // printf("[main runtime] %s start\n", __func__);
   uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
   uint64_t YXSTM_size       = YXS_trusted_memory_size;
 
@@ -614,54 +625,24 @@ uintptr_t handle_main_dispatch_send(void* src, size_t block_id, size_t block_siz
     return ret;
   }
 
-  this_slave_flag_addr[(i*3)] = 1;
+  // this_slave_flag_addr[(i*3)] = 1;
+  // this_slave_flag_addr[(i*3) + 1] = block_size;
+  // this_slave_flag_addr[(i*3) + 2] = block_id;
+
+  // dont care size
   this_slave_flag_addr[(i*3) + 1] = block_size;
   this_slave_flag_addr[(i*3) + 2] = block_id;
+  this_slave_flag_addr[(i*3)] = 1;
+  
+  // printf("[main runtime] %s, block_id:%d, block_size:%d\n", __func__, block_id, block_size);
 
   return 0;
 }
 
 // slave
-// decrypt, size, id = 1, size, id . slave set data ==> decrypt = 2
-uintptr_t handle_slave_set_block(void* src, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
-  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
-  uint64_t YXSTM_size       = YXS_trusted_memory_size;
-
-  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
-  if (number <= 0) {
-    return 1;
-  }
-
-  size_t slave_stm_region = number / (flexible - 1);
-
-  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
-  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 18);
-
-  size_t i = 0;
-  while (1) {
-    for (i = 0; i < slave_stm_region; i++) {
-      if (this_slave_flag_addr[(i*3)] == 1 && this_slave_flag_addr[(i*3) + 1] == block_size && this_slave_flag_addr[(i*3) + 2] == block_id) {
-        break;
-      }
-    }
-    if (i < slave_stm_region) {
-      break;
-    }
-  }
-
-  int ret = copy_from_user((void*)(slave_stm_data_ptr_start + (i << 18)), src, block_size);
-  if (ret) {
-    return ret;
-  }
-
-  this_slave_flag_addr[(i*3)] = 2;
-
-  return 0;
-}
-
-// main
-// decrypt, size, id = 2, size, id . main get data ==> decrypt, size, id = 0, 0, 0
-uintptr_t handle_get_slave_block(void* dest, size_t block_id, size_t block_size, size_t slave_id, size_t flexible) {
+// decrypt, size, id = 2, size, id . slave set data ==> decrypt = 3
+uintptr_t handle_slave_set_block(void* src, uint64_t block_id, uint64_t block_size, uint64_t slave_id, uint64_t flexible) {
+  // printf("[slave runtime] %s start\n", __func__);
   uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
   uint64_t YXSTM_size       = YXS_trusted_memory_size;
 
@@ -687,6 +668,47 @@ uintptr_t handle_get_slave_block(void* dest, size_t block_id, size_t block_size,
     }
   }
 
+  int ret = copy_from_user((void*)(slave_stm_data_ptr_start + (i << 18)), src, block_size);
+  if (ret) {
+    return ret;
+  }
+
+  this_slave_flag_addr[(i*3)] = 3;
+
+  // printf("[slave runtime] %s end\n", __func__);
+
+  return 0;
+}
+
+// main
+// decrypt, size, id = 3, size, id . main get data ==> decrypt, size, id = 0, 0, 0
+uintptr_t handle_get_slave_block(void* dest, uint64_t block_id, uint64_t block_size, uint64_t slave_id, uint64_t flexible) {
+  // printf("[main runtime] %s start\n", __func__);
+  uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
+  uint64_t YXSTM_size       = YXS_trusted_memory_size;
+
+  int number = ((YXSTM_size + 0x3ffff) >> 18) - 1;
+  if (number <= 0) {
+    return 1;
+  }
+
+  size_t slave_stm_region = number / (flexible - 1);
+
+  uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
+  char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 18);
+
+  size_t i = 0;
+  while (1) {
+    for (i = 0; i < slave_stm_region; i++) {
+      if (this_slave_flag_addr[(i*3)] == 3 && this_slave_flag_addr[(i*3) + 1] == block_size && this_slave_flag_addr[(i*3) + 2] == block_id) {
+        break;
+      }
+    }
+    if (i < slave_stm_region) {
+      break;
+    }
+  }
+
   int ret = copy_to_user(dest, (void*)(slave_stm_data_ptr_start + (i << 18)), block_size);
   if (ret) {
     return ret;
@@ -695,6 +717,8 @@ uintptr_t handle_get_slave_block(void* dest, size_t block_id, size_t block_size,
   this_slave_flag_addr[(i*3)] = 0;
   this_slave_flag_addr[(i*3)+1] = 0;
   this_slave_flag_addr[(i*3)+2] = 0;
+
+  // printf("[main runtime] %s end\n", __func__);
 
   return 0;
 }

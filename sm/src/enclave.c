@@ -553,9 +553,12 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
     if (is_create) {
       generate_kg(&enclaves[eid], kg);
       sbi_memcpy((void*)(YXSTbase + YXSTsize - sizeof(kg)), (void*)kg, sizeof(kg));
+      sbi_printf("kg_ready 1\n");
       kg_ready = 1;
+      mb();
     } else {
-      while (kg_ready){
+      sbi_printf("kg_ready 2\n");
+      while (!kg_ready){
         mb();
       }
     }
@@ -664,6 +667,7 @@ unsigned long destroy_enclave(enclave_id eid)
         // sbi_printf("sm pmp testing free YXSTM pmp, %s\n", __func__);
         pmp_unset_global(rid);
         pmp_region_free_atomic(rid);
+        kg_ready = 0;
       }
       continue;
     }
