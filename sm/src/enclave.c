@@ -1365,6 +1365,7 @@ unsigned long s_enclave_attested(enclave_id eid, uintptr_t report, uintptr_t non
 }
 
 unsigned long m_enclave_attest_s_enclave(enclave_id eid, uintptr_t report, uintptr_t kg, uintptr_t flag) {
+  sbi_printf("func:%s, slave kg and hmac attest start\n", __func__);
   struct s_attested_report s_report;
   unsigned char m_kg[64];
   unsigned char s_hmac[64];
@@ -1405,6 +1406,8 @@ unsigned long m_enclave_attest_s_enclave(enclave_id eid, uintptr_t report, uintp
   if (ret) {
     return ret;
   }
+
+  sbi_printf("func:%s, slave kg and hmac attest match\n", __func__);
 
   return 0;
 

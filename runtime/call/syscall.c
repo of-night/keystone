@@ -454,6 +454,8 @@ uintptr_t handle_m_attestt_s_enclave(size_t slave_id, size_t flexible) {
   // 将kg作为 report中的nonce
   // data maxlen = 1024, sizeof(kg)=64
 
+  // printf("[main runtime] %s start 1, slave_id:%d, flexible:%d\n", __func__, slave_id, flexible);
+
   uint64_t *YXSTM_start_ptr = (uint64_t *)YXS_trusted_memory;
   uint64_t YXSTM_size       = YXS_trusted_memory_size;
 
@@ -467,27 +469,41 @@ uintptr_t handle_m_attestt_s_enclave(size_t slave_id, size_t flexible) {
   uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
   char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 11);
 
+  // printf("[main runtime] %s start 2\n", __func__);
+
   size_t i = 0;
   while(1) {
     for (i = 0; i < slave_stm_region; i++) {
+      // printf("[main runtime] %s start .1.. i:%d, slave_stm_region:%d\n", __func__, i, slave_stm_region);
       if (this_slave_flag_addr[(i*3)] == 1 && this_slave_flag_addr[(i*3) + 1] == 2048) {
         break;
       }
     }
+
+    // printf("[main runtime] %s start .2.. i:%d, slave_stm_region:%d\n", __func__, i, slave_stm_region);
 
     if (i < slave_stm_region) {
       break;
     }
   }
 
+  // printf("[main runtime] %s start 3\n", __func__);
+
   memcpy((void*)attested_report, (slave_stm_data_ptr_start + (i << 11)), 2048);
   this_slave_flag_addr[(i*3)] = 0;
   this_slave_flag_addr[(i*3) + 1] = 0;
+
+  // printf("[main runtime] %s start 4\n", __func__);
+
   // attest s report
   if (m_attestt_s_enclave(attested_report)) {
     printf("attest not match %s, slave_id:%d\n", __func__, slave_id);
+    this_slave_flag_addr[(i*3)] = 2;
     return 1;
   }
+
+  this_slave_flag_addr[(i*3)] = 2;
+  // printf("[main runtime] %s start 5\n", __func__);
 
   return 0;
 }
@@ -495,6 +511,7 @@ uintptr_t handle_m_attestt_s_enclave(size_t slave_id, size_t flexible) {
 uintptr_t handle_s_enclave_attestted(size_t slave_id, size_t flexible) {
   // 将kg作为 report中的nonce
   // data maxlen = 1024, sizeof(kg)=64
+  // printf("[slave runtime] %s start 1, slave_id:%d, flexible:%d\n", __func__, slave_id, flexible);
   if (sbi_slave_enclave_attested(attested_report, sbi_random(), kg)) {
     return 1;
   }
@@ -512,6 +529,7 @@ uintptr_t handle_s_enclave_attestted(size_t slave_id, size_t flexible) {
   uint64_t *this_slave_flag_addr = YXSTM_start_ptr + (3 * slave_stm_region * (slave_id - 1));
   char *slave_stm_data_ptr_start = (char*)YXSTM_start_ptr + (sizeof(uint64_t) * 3 * slave_stm_region * (flexible - 1)) + ((slave_stm_region * (slave_id - 1)) << 11);
 
+  // printf("[slave runtime] %s start 2\n", __func__);
   size_t i = 0;
   while (1) {
     for (i = 0; i < slave_stm_region; i++) {
@@ -525,9 +543,21 @@ uintptr_t handle_s_enclave_attestted(size_t slave_id, size_t flexible) {
     }
   }
   
+  // printf("[slave runtime] %s start 3\n", __func__);
   memcpy((slave_stm_data_ptr_start + (i << 11)), (void*)attested_report, 2048);
   this_slave_flag_addr[(i*3)] = 1;
   this_slave_flag_addr[(i*3) + 1] = 2048;
+
+  while(1) {
+    if (this_slave_flag_addr[(i*3)] == 2) {
+      this_slave_flag_addr[(i*3)] = 0;
+      this_slave_flag_addr[(i*3) + 1] = 0;
+      memset(slave_stm_data_ptr_start + (i << 11), 0, 2048);
+      break;
+    }
+  }
+
+  // printf("[slave runtime] %s start 4\n", __func__);
 
   return 0;
 }
