@@ -1,5 +1,7 @@
 #!/bin/bash
 
+PWD_KEYSTONE_DIR=$(pwd)
+export PATH=$PATH:${PWD_KEYSTONE_DIR}/build-starfive/visionfive264/buildroot.build/host/bin
 export EXAMPLES_DIR_NAME=$(ls build-starfive/visionfive264/buildroot.build/build | grep keystone-examples)
 
 echo "Examples dir name: $EXAMPLES_DIR_NAME"

@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
     params.setUntrustedSize(2 * 1024 * 1024);
 
     params.setYXms(2);
+    params.setEngineID(1);
     params.setYXShareTrustedMemSize(1*1024*1024);
 
     enclave.test_other_os_access_epm_init("other_os_access_epm_eapp", "eyrie-rt", "loader.bin", params);
