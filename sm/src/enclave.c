@@ -480,6 +480,7 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
   if (ms_YXSTM) {
     spin_lock(&encl_lock);
     is_create = (YXSTM_sm_init == 0);
+    // sbi_printf("is_create:%d ,YXSTM_sm_init:%d, eid:%d\n", is_create, YXSTM_sm_init, eid);
     if (is_create && sm_engine_id != 0) {
       if(pmp_region_init_atomic(YXSTbase, YXSTsize, PMP_PRI_ANY, &YXSTM_region, 0)) {
         spin_unlock(&encl_lock);
@@ -549,20 +550,37 @@ unsigned long create_enclave(unsigned long *eidptr, struct keystone_sbi_create_t
  
   ret = validate_and_hash_enclave(&enclaves[eid]);
 
+  // spin_unlock(&encl_lock);
   if (ms_YXSTM) {
-    if (is_create) {
+    // if (is_create) {
+    //   sbi_printf("kg_ready 1, eid:%d\n", eid);
+    //   generate_kg(&enclaves[eid], kg);
+    //   sbi_printf("kg_ready 1, eid:%d\n", eid);
+    //   sbi_memcpy((void*)(YXSTbase + YXSTsize - sizeof(kg)), (void*)kg, sizeof(kg));
+    //   sbi_printf("kg_ready 3, eid:%d\n", eid);
+    //   kg_ready = 1;
+    //   mb();
+    // } else {
+    //   sbi_printf("kg_ready 2, eid:%d\n", eid);
+    //   sbi_printf("YXSTM_sm_init:%d , eid:%d\n", YXSTM_sm_init, eid);
+    //   while (!kg_ready){
+    //     mb();
+    //   }
+    // }
+    // spin_lock(&encl_lock);
+    if (kg_ready == 0) {
       generate_kg(&enclaves[eid], kg);
+      // sbi_printf("kg_ready 1, eid:%d, kg_ready:%d\n", eid, kg_ready);
       sbi_memcpy((void*)(YXSTbase + YXSTsize - sizeof(kg)), (void*)kg, sizeof(kg));
-      sbi_printf("kg_ready 1\n");
+      // sbi_printf("kg_ready 3, eid:%d\n", eid);
       kg_ready = 1;
-      mb();
     } else {
-      sbi_printf("kg_ready 2\n");
-      while (!kg_ready){
-        mb();
-      }
+      // sbi_printf("kg_ready 2, eid:%d, kg_ready:%d\n", eid, kg_ready);
+      // sbi_printf("YXSTM_sm_init:%d , eid:%d\n", YXSTM_sm_init, eid);
     }
+    // spin_unlock(&encl_lock);
   }
+  // spin_lock(&encl_lock);
   
   /* The enclave is fresh if it has been validated and hashed but not run yet. */
   if (ret)
@@ -1365,7 +1383,7 @@ unsigned long s_enclave_attested(enclave_id eid, uintptr_t report, uintptr_t non
 }
 
 unsigned long m_enclave_attest_s_enclave(enclave_id eid, uintptr_t report, uintptr_t kg, uintptr_t flag) {
-  sbi_printf("func:%s, slave kg and hmac attest start\n", __func__);
+  // sbi_printf("func:%s, slave kg and hmac attest start\n", __func__);
   struct s_attested_report s_report;
   unsigned char m_kg[64];
   unsigned char s_hmac[64];
@@ -1407,7 +1425,7 @@ unsigned long m_enclave_attest_s_enclave(enclave_id eid, uintptr_t report, uintp
     return ret;
   }
 
-  sbi_printf("func:%s, slave kg and hmac attest match\n", __func__);
+  // sbi_printf("func:%s, slave kg and hmac attest match\n", __func__);
 
   return 0;
 

@@ -11,7 +11,7 @@
 void sbi_pmp_ipi_local_update(struct sbi_tlb_info *__info)
 {
   struct sbi_pmp_ipi_info* info = (struct sbi_pmp_ipi_info *) __info;
-  sbi_printf("test ipi update %s, source_hart_id:%u, rid:%ld\n", __func__, current_hartid(), info->rid);
+  // sbi_printf("test ipi update %s, source_hart_id:%u, rid:%ld\n", __func__, current_hartid(), info->rid);
   if (info->type == SBI_PMP_IPI_TYPE_SET) {
     pmp_set_keystone(info->rid, (uint8_t) info->perm);
   } else {
@@ -23,7 +23,7 @@ void send_and_sync_pmp_ipi(int region_idx, int type, uint8_t perm)
 {
   ulong mask = 0;
   ulong source_hart = current_hartid();
-  sbi_printf("ipi send test %s, source_hart_id:%lu, region_id:%d\n", __func__, source_hart, region_idx);
+  // sbi_printf("ipi send test %s, source_hart_id:%lu, region_id:%d\n", __func__, source_hart, region_idx);
   struct sbi_tlb_info tlb_info;
   sbi_hsm_hart_interruptible_mask(sbi_domain_thishart_ptr(), 0, &mask);
 
