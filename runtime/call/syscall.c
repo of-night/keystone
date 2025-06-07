@@ -615,6 +615,11 @@ uintptr_t handle_wait_main_dispatch(void* dest, void* block_id, void* block_size
 
   this_slave_flag_addr[(i*3)] = 2;
 
+  if (this_slave_flag_addr[(i*3) + 1] == 0) {
+    this_slave_flag_addr[(i*3)] = 0;
+    this_slave_flag_addr[(i*3)+2] = 0;
+  }
+
   // printf("[slave runtime] %s, block_id:%d, block_size:%d\n", __func__, this_slave_flag_addr[(i*3) + 2], this_slave_flag_addr[(i*3) + 1]);
 
   return 0;
